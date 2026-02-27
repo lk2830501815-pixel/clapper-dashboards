@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Clapper 主播收入 Top50 看板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0c0f1a 0%,#111827 50%,#0f172a 100%);color:#e2e8f0;min-height:100vh;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.15);border-radius:3px}
+.header{background:linear-gradient(90deg,rgba(245,158,11,0.08),rgba(139,92,246,0.08));border-bottom:1px solid rgba(148,163,184,0.08);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
+.header-left{display:flex;align-items:center;gap:14px}
+.logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#ef4444);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff}
+.header-title{font-size:18px;font-weight:700;letter-spacing:-0.02em}
+.header-sub{font-size:11px;color:#64748b;margin-top:1px}
+.nav{display:flex;gap:4px;background:rgba(15,23,42,0.5);border-radius:10px;padding:3px}
+.nav-btn{padding:7px 16px;border-radius:8px;border:none;background:transparent;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit}
+.nav-btn.active{background:rgba(245,158,11,0.15);color:#f59e0b}.nav-btn:hover{color:#94a3b8}
+.stats-grid{padding:16px 28px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.stats-grid-6{padding:0 28px;display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+@media(max-width:960px){.stats-grid,.stats-grid-6{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:rgba(30,41,59,0.5);border:1px solid rgba(148,163,184,0.08);border-radius:12px;padding:14px 16px;transition:transform 0.2s;animation:fadeIn 0.4s ease forwards;opacity:0}
+.stat-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3)}
+.stat-label{font-size:11px;color:#64748b;display:flex;justify-content:space-between;align-items:center}
+.stat-value{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:6px}
+.stat-sub{font-size:12px;font-weight:600;margin-top:2px}
+.filters{padding:0 28px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tier-group{display:flex;gap:3px;background:rgba(30,41,59,0.5);border-radius:10px;padding:3px}
+.tier-btn{padding:5px 14px;border-radius:8px;border:none;background:transparent;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.search-input{background:rgba(30,41,59,0.5);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:7px 14px;color:#e2e8f0;font-size:13px;width:220px;outline:none;font-family:inherit}
+.search-input:focus{border-color:rgba(245,158,11,0.4)}.search-input::placeholder{color:#475569}
+.clear-btn{padding:6px 14px;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#ef4444;font-size:12px;cursor:pointer;font-weight:600;font-family:inherit}
+.content{padding:0 28px 32px}
+.table-wrap{background:rgba(30,41,59,0.35);border:1px solid rgba(148,163,184,0.06);border-radius:14px;overflow:hidden}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:1860px}
+thead tr{background:rgba(15,23,42,0.6)}
+th{padding:6px 10px;color:#64748b;font-weight:600;font-size:10px;letter-spacing:0.04em;white-space:nowrap;border-bottom:1px solid rgba(148,163,184,0.06);user-select:none;text-align:center}
+th.group-header{font-size:11px;color:#94a3b8;font-weight:700;border-bottom:1px solid rgba(148,163,184,0.1);padding:8px 10px}
+th.sortable{cursor:pointer}th.sortable:hover{color:#94a3b8}th.sorted{color:#f59e0b !important}
+td{padding:8px 10px;border-bottom:1px solid rgba(148,163,184,0.04)}
+tbody tr{transition:background 0.15s}tbody tr:hover{background:rgba(148,163,184,0.04)}tbody tr.compared{background:rgba(245,158,11,0.06)}
+.col-daily{background:rgba(245,158,11,0.02)}.col-weekly{background:rgba(139,92,246,0.02)}
+.mono{font-family:'JetBrains Mono',monospace}
+.change-pos{color:#10b981}.change-neg{color:#ef4444}.change-neu{color:#64748b}
+.compare-btn{width:26px;height:26px;border-radius:6px;border:none;background:rgba(148,163,184,0.08);color:#64748b;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+.compare-btn.active{background:rgba(245,158,11,0.2);color:#f59e0b}
+.chart-card{background:rgba(30,41,59,0.35);border:1px solid rgba(148,163,184,0.06);border-radius:14px;padding:20px;margin-bottom:16px}
+.chart-title{font-size:15px;font-weight:700;margin-bottom:4px}
+.chart-sub{font-size:11px;color:#64748b;margin-bottom:16px}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:960px){.chart-row{grid-template-columns:1fr}}
+.analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:960px){.analysis-grid{grid-template-columns:1fr}}
+.tier-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.tier-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;flex-shrink:0}
+.progress-bar{height:6px;background:rgba(148,163,184,0.08);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px}
+.conc-item{margin-bottom:14px}
+.conc-bar{height:8px;background:rgba(148,163,184,0.08);border-radius:4px;overflow:hidden}
+.conc-fill{height:100%;border-radius:4px}
+.alert-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;margin-bottom:8px}
+.alert-danger{background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.1)}
+.alert-success{background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.1)}
+.tab-content{display:none}.tab-content.active{display:block;animation:fadeIn 0.3s ease}
+.footer{text-align:center;padding:20px 28px 28px;color:#334155;font-size:11px;border-top:1px solid rgba(148,163,184,0.04)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-left">
+    <div class="logo">C</div>
+    <div>
+      <div class="header-title">Clapper 主播收入 Top50 看板</div>
+      <div class="header-sub">Streamer Revenue Dashboard · 周期: 2026.01.19–02.22 · 日明细: 02.09–02.15</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <button class="nav-btn active" data-tab="ranking">📊 排名</button>
+    <button class="nav-btn" data-tab="trend">📈 趋势</button>
+    <button class="nav-btn" data-tab="viewers">👁 观众</button>
+    <button class="nav-btn" data-tab="analysis">🔍 分析</button>
+  </nav>
+</header>
+<div class="stats-grid" id="statsGrid"></div>
+<div class="stats-grid-6" id="dailyStatsGrid"></div>
+<div style="height:14px"></div>
+<div class="filters">
+  <div class="tier-group" id="tierGroup"></div>
+  <div style="flex:1"></div>
+  <input class="search-input" id="searchInput" placeholder="🔍 搜索主播名..."/>
+  <button class="clear-btn" id="clearCompare" style="display:none">清除对比 (<span id="compareCount">0</span>)</button>
+</div>
+<div class="content">
+  <div class="tab-content active" id="tab-ranking">
+    <div class="table-wrap"><div class="table-scroll">
+      <table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+    </div></div>
+  </div>
+  <div class="tab-content" id="tab-trend">
+    <div class="chart-card"><div class="chart-title">周收入趋势对比</div><div class="chart-sub" id="weekTrendSub"></div><canvas id="weekTrendChart" height="160"></canvas></div>
+    <div class="chart-card"><div class="chart-title">日收入趋势对比 (02.09-02.15)</div><div class="chart-sub" id="dayTrendSub"></div><canvas id="dayTrendChart" height="160"></canvas></div>
+    <div class="chart-card"><div class="chart-title">💝 日送礼用户数趋势</div><div class="chart-sub" id="gifterTrendSub"></div><canvas id="gifterTrendChart" height="160"></canvas></div>
+    <div class="chart-card"><div class="chart-title">⏱ 日开播时长趋势</div><div class="chart-sub" id="hoursTrendSub"></div><canvas id="hoursTrendChart" height="160"></canvas></div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-title">Top 20 收入分布</div><div class="chart-sub">W5(本周) vs W4(上周)</div><canvas id="topBarChart" height="180"></canvas></div>
+      <div class="chart-card"><div class="chart-title">🏆 全部50主播收入总览</div><div class="chart-sub">按W5降序 · S=金 A=紫 B=蓝 C=灰</div><canvas id="allBarChart" height="180"></canvas></div>
+    </div>
+  </div>
+  <div class="tab-content" id="tab-viewers">
+    <div class="chart-card"><div class="chart-title">👁 每日观众数趋势 (02.09-02.15)</div><div class="chart-sub" id="viewerTrendSub"></div><canvas id="viewerTrendChart" height="180"></canvas></div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-title">📊 观众数 vs 收入</div><div class="chart-sub">气泡大小=粉丝数 · ARPU=日收入/观众数</div><canvas id="viewerScatter" height="200"></canvas></div>
+      <div class="chart-card"><div class="chart-title">💰 ARPPU Top 20 (人均付费)</div><div class="chart-sub">日收入 / 送礼用户数 = 每位付费用户贡献</div><canvas id="arppuChart" height="200"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-title">🎯 付费率 Top 20</div><div class="chart-sub">送礼用户 / 总观众 = 观众转化效率</div><canvas id="payRateChart" height="200"></canvas></div>
+      <div class="chart-card"><div class="chart-title">💎 ARPU Top 20 (每观众收入)</div><div class="chart-sub">日收入 / 总观众 = 观众变现效率</div><canvas id="arpuChart" height="200"></canvas></div>
+    </div>
+    <div class="chart-card"><div class="chart-title">👥 Top 30 主播观众数排名</div><div class="chart-sub">02.15观众数 · 颜色=层级 · 标注日环比</div><canvas id="viewerBarChart" height="200"></canvas></div>
+    <div class="chart-card"><div class="chart-title">🧭 主播变现类型四象限</div><div class="chart-sub">X=付费率(观众转化) · Y=ARPPU(付费深度) · 虚线=中位数分界</div><canvas id="quadrantChart" height="280"></canvas></div>
+    <div class="chart-card" id="streamerTypeCard"></div>
+  </div>
+  <div class="tab-content" id="tab-analysis">
+    <div class="chart-card" id="weeklySummaryCard" style="margin-bottom:16px"></div>
+    <div class="analysis-grid">
+      <div class="chart-card" id="tierCard"></div>
+      <div class="chart-card"><div class="chart-title">周排名变动 Top 15</div><canvas id="rankChart" height="200"></canvas></div>
+      <div class="chart-card" id="concCard"></div>
+      <div class="chart-card" id="alertCard"></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card" id="diagCard" style="grid-column:1/-1"></div>
+    </div>
+    <div class="chart-card" id="countryCard"></div>
+    <div class="chart-row">
+      <div class="chart-card" id="whaleOverlapCard"></div>
+      <div class="chart-card" id="whaleRiskCard"></div>
+    </div>
+  </div>
+</div>
+<footer class="footer">Clapper Streamer Analytics · 内部数据看板 · 2026 · 数据更新: 2026-02-24</footer>
+<script>
+// ⚠️ PREV_ROSTER = 上一周的Top50主播ID列表，每周更新数据时：将当前RAW的ID复制到这里，再替换RAW为新数据
+const PREV_ROSTER=[4967547, 21771002, 5406624, 8349079, 5021625, 12328564, 2809152, 8677440, 4903941, 4918323, 20358086, 8786764, 4865222, 12118469, 21138890, 5504029, 5290242, 8644406, 4915327, 5181227, 10262016, 5849532, 5062034, 12525421, 7395634, 10738881, 6111451, 4568422, 7728156, 5470821, 6086902, 11160083, 6315592, 8459668, 6443040, 5149932, 6454575, 5922231, 5367212, 11888087, 12550309, 10454893, 6249157, 7337718, 8085178, 6258732, 4170150, 4886261, 5101688, 5074160];
+const RAW=[{"id": 4967547, "name": "Curviecutie", "created": "2022-06-03", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 207039, "sessions": 2182, "tag": "onlyfans", "totalEarning": 415514.26, "liveDays7": 5, "weekly": [4058.2, 4015.53, 2468.49, 2516.2, 304.2], "daily": [0.0, 0.0, 4.03, 504.64, 1141.86, 561.42, 304.25], "viewers": [0, 0, 1895, 7977, 18661, 8729, 6991], "gifters": [0, 0, 5, 189, 247, 144, 115], "hours": [0.0, 0.0, 0.2, 1.37, 3.69, 1.63, 1.08], "top3users": "u_15126008,2012212,24124308"}, {"id": 21771002, "name": "Twiggy_b00bies", "created": "2025-04-16", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 129045, "sessions": 451, "tag": "onlyfans", "totalEarning": 369623.13, "liveDays7": 7, "weekly": [6961.35, 7814.84, 7535.01, 8454.75, 8645.69], "daily": [1178.07, 1504.61, 1004.52, 1090.87, 1175.02, 1085.56, 1416.11], "viewers": [27034, 29980, 31583, 26408, 39846, 31471, 40031], "gifters": [127, 202, 262, 107, 120, 96, 250], "hours": [4.3, 5.1, 5.5, 4.69, 7.84, 6.23, 7.81], "top3users": "u_24117274,6567419,28592122"}, {"id": 5406624, "name": "YourDreamGirlll", "created": "2022-09-28", "lastActive": "2026-02-23", "culture": "en", "country": "Unknown", "followers": 191775, "sessions": 1821, "tag": "onlyfans", "totalEarning": 333526.03, "liveDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 691.38], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "viewers": [0, 0, 0, 0, 0, 0, 0], "gifters": [0, 0, 0, 0, 0, 0, 0], "hours": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "top3users": "u_6833927,12867885,30194261"}, {"id": 8349079, "name": "Ball_drainer_katie", "created": "2023-08-04", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 124466, "sessions": 2391, "tag": "onlyfans", "totalEarning": 271944.91, "liveDays7": 6, "weekly": [3438.09, 4629.18, 2130.92, 3794.61, 2915.76], "daily": [0.0, 283.44, 893.67, 483.19, 818.47, 1213.45, 102.39], "viewers": [0, 14213, 31266, 20453, 21061, 16669, 7327], "gifters": [0, 94, 256, 130, 240, 163, 51], "hours": [0.0, 3.47, 7.11, 4.94, 5.17, 3.58, 1.69], "top3users": "u_14481581,30214925,3489399"}, {"id": 5021625, "name": "Alisondaddy", "created": "2022-06-17", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 170640, "sessions": 944, "tag": "onlyfans", "totalEarning": 262594.13, "liveDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 516.13], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "viewers": [0, 0, 0, 0, 0, 0, 0], "gifters": [0, 0, 0, 0, 0, 0, 0], "hours": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "top3users": "u_27859768,8096526,14221690"}, {"id": 12328564, "name": "naughtynicole", "created": "2024-11-06", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 103831, "sessions": 893, "tag": "onlyfans", "totalEarning": 255359.39, "liveDays7": 5, "weekly": [1618.89, 6194.77, 4677.44, 3658.22, 5087.3], "daily": [776.65, 856.67, 503.75, 0.0, 1189.43, 331.71, 0.0], "viewers": [22240, 21840, 18063, 0, 26301, 10640, 0], "gifters": [108, 115, 75, 0, 205, 91, 0], "hours": [5.03, 4.99, 4.17, 0.0, 5.37, 2.17, 0.0], "top3users": "u_9076476,4191809,28457140"}, {"id": 2809152, "name": "Bumblebeebri", "created": "2021-06-05", "lastActive": "2026-02-23", "culture": "en", "country": "South Korea", "followers": 228368, "sessions": 2107, "tag": "onlyfans", "totalEarning": 236205.79, "liveDays7": 6, "weekly": [1845.16, 1912.01, 4070.36, 1814.82, 1248.13], "daily": [0.0, 126.59, 470.8, 429.08, 732.0, 27.97, 28.36], "viewers": [0, 19118, 17714, 17766, 16811, 19282, 4119], "gifters": [0, 83, 159, 130, 180, 21, 28], "hours": [0.0, 3.41, 4.35, 3.25, 3.94, 3.54, 0.75], "top3users": "u_6574822,5506197,28249001"}, {"id": 8677440, "name": "QueenAleksaGrey", "created": "2023-09-29", "lastActive": "2026-02-23", "culture": "en", "country": "Belgium", "followers": 147333, "sessions": 2629, "tag": "onlyfans", "totalEarning": 236135.07, "liveDays7": 6, "weekly": [3144.86, 2718.78, 1583.11, 808.47, 689.66], "daily": [354.66, 23.66, 0.0, 42.7, 211.54, 111.44, 64.47], "viewers": [15684, 49490, 0, 32108, 16206, 13579, 33506], "gifters": [168, 27, 0, 33, 181, 127, 64], "hours": [2.84, 18.63, 0.0, 10.87, 3.63, 2.79, 7.37], "top3users": "u_5796410,28398622,8396018"}, {"id": 4903941, "name": "Live_Your_Best_Life", "created": "2022-05-21", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 150094, "sessions": 3736, "tag": "onlyfans", "totalEarning": 230857.59, "liveDays7": 7, "weekly": [1801.62, 2073.83, 3034.28, 1949.85, 648.3], "daily": [24.39, 82.17, 361.31, 445.0, 52.7, 946.53, 37.75], "viewers": [16856, 15385, 25403, 35412, 16210, 38890, 14619], "gifters": [14, 10, 42, 51, 15, 152, 18], "hours": [9.08, 8.21, 7.53, 12.68, 7.73, 12.19, 6.6], "top3users": "u_8907439,2683811,4659957"}, {"id": 4918323, "name": "BellaBiddie", "created": "2022-05-23", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 131686, "sessions": 1146, "tag": "onlyfans", "totalEarning": 229654.72, "liveDays7": 5, "weekly": [8892.08, 4688.02, 5697.53, 11079.38, 2058.24], "daily": [83.09, 1617.17, 0.0, 1121.32, 0.0, 512.46, 7745.34], "viewers": [25, 34194, 0, 28757, 0, 23954, 45967], "gifters": [8, 81, 0, 56, 0, 43, 171], "hours": [7.62, 10.6, 0.0, 6.17, 0.0, 5.37, 10.53], "top3users": "u_10388660,5819324,7267669"}, {"id": 20358086, "name": "Hellokatie98", "created": "2025-02-11", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 91010, "sessions": 342, "tag": "onlyfans", "totalEarning": 227497.51, "liveDays7": 6, "weekly": [1826.09, 1942.37, 2718.38, 3298.89, 3156.73], "daily": [531.04, 370.98, 0.0, 280.31, 336.6, 1092.83, 687.13], "viewers": [9269, 10494, 0, 6362, 8447, 9015, 10582], "gifters": [41, 30, 0, 47, 40, 165, 49], "hours": [2.03, 1.64, 0.0, 1.4, 1.76, 2.08, 1.97], "top3users": "u_12254044,19621602,25888225"}, {"id": 8786764, "name": "Kaitlynn_Kate", "created": "2023-10-18", "lastActive": "2026-02-23", "culture": "en", "country": "Romania", "followers": 161316, "sessions": 1514, "tag": "onlyfans", "totalEarning": 226286.71, "liveDays7": 5, "weekly": [1850.84, 3702.65, 3053.72, 1653.08, 1374.27], "daily": [595.03, 0.0, 0.0, 444.2, 250.06, 244.75, 119.04], "viewers": [15660, 0, 0, 28641, 16225, 16662, 13299], "gifters": [132, 0, 0, 189, 88, 189, 71], "hours": [3.05, 0.0, 0.0, 5.78, 3.92, 3.58, 2.58], "top3users": "u_28398622,29693751,28374776"}, {"id": 4865222, "name": "L1Z4B31", "created": "2022-05-13", "lastActive": "2026-02-23", "culture": "en", "country": "Australia", "followers": 161820, "sessions": 1921, "tag": "onlyfans", "totalEarning": 221152.18, "liveDays7": 4, "weekly": [1625.07, 165.86, 1620.04, 1563.63, 2171.72], "daily": [0.0, 517.38, 546.25, 0.0, 0.0, 0.0, 500.0], "viewers": [0, 20038, 7525, 0, 0, 0, 19132], "gifters": [0, 220, 176, 0, 0, 0, 236], "hours": [0.0, 4.03, 0.97, 0.0, 0.0, 0.0, 3.92], "top3users": "u_20318235,8503558,10423780"}, {"id": 12118469, "name": "LiaSinclair", "created": "2024-11-03", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 145715, "sessions": 1102, "tag": "onlyfans", "totalEarning": 216388.09, "liveDays7": 7, "weekly": [3056.06, 3268.64, 4004.99, 3497.37, 4548.34], "daily": [177.36, 566.48, 429.47, 497.17, 1031.15, 297.02, 498.72], "viewers": [10940, 23086, 19792, 23338, 19838, 10066, 22844], "gifters": [105, 142, 139, 188, 181, 59, 184], "hours": [2.86, 4.92, 5.09, 6.32, 6.01, 2.38, 5.69], "top3users": "u_26483371,12378314,10484685"}, {"id": 21138890, "name": "ByaByanca", "created": "2025-03-18", "lastActive": "2026-02-23", "culture": "en", "country": "Romania", "followers": 114789, "sessions": 1363, "tag": "onlyfans", "totalEarning": 209841.32, "liveDays7": 6, "weekly": [2083.11, 3095.45, 2432.39, 2095.41, 2418.43], "daily": [211.4, 328.81, 250.68, 501.73, 544.66, 0.0, 258.14], "viewers": [31658, 38650, 13960, 36102, 17712, 0, 18306], "gifters": [120, 171, 50, 163, 101, 0, 105], "hours": [9.23, 9.95, 4.32, 12.07, 5.59, 0.0, 4.93], "top3users": "u_29124481,28467945,27993917"}, {"id": 5504029, "name": "Creamyjillyyy", "created": "2022-10-29", "lastActive": "2026-02-22", "culture": "en", "country": "United States", "followers": 155366, "sessions": 2451, "tag": "onlyfans", "totalEarning": 208917.99, "liveDays7": 5, "weekly": [740.35, 1849.87, 879.87, 1101.48, 1087.58], "daily": [283.41, 159.28, 291.05, 116.09, 251.65, 0.0, 0.0], "viewers": [11932, 10153, 16780, 6073, 13421, 0, 0], "gifters": [140, 141, 196, 83, 154, 0, 0], "hours": [3.52, 2.49, 5.37, 1.58, 3.6, 0.0, 0.0], "top3users": "u_25508556,28212461,11726067"}, {"id": 5290242, "name": "Nikki_Washington", "created": "2022-08-27", "lastActive": "2026-02-22", "culture": "en", "country": "United States", "followers": 133605, "sessions": 669, "tag": "onlyfans", "totalEarning": 208790.95, "liveDays7": 2, "weekly": [1277.93, 611.85, 1949.87, 2361.65, 1489.63], "daily": [0.0, 0.0, 1349.24, 0.0, 1012.41, 0.0, 0.0], "viewers": [0, 0, 9483, 0, 8570, 0, 0], "gifters": [0, 0, 246, 0, 202, 0, 0], "hours": [0.0, 0.0, 1.59, 0.0, 1.98, 0.0, 0.0], "top3users": "u_27804245,22220648,29750725"}, {"id": 8644406, "name": "JessieOff", "created": "2023-09-23", "lastActive": "2026-02-23", "culture": "en", "country": "Romania", "followers": 156677, "sessions": 1119, "tag": "onlyfans", "totalEarning": 207874.81, "liveDays7": 6, "weekly": [0.0, 0.0, 343.39, 2638.61, 1019.2], "daily": [0.0, 962.58, 149.85, 179.89, 253.47, 502.26, 590.55], "viewers": [0, 51768, 19006, 16146, 19167, 24636, 35587], "gifters": [0, 352, 76, 80, 106, 94, 295], "hours": [0.0, 13.35, 4.72, 3.35, 3.88, 5.34, 7.2], "top3users": "u_29719654,25224680,2146112"}, {"id": 4915327, "name": "Cloe_foxbow", "created": "2022-05-23", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 154287, "sessions": 1049, "tag": "onlyfans", "totalEarning": 196272.52, "liveDays7": 3, "weekly": [1833.69, 452.3, 1907.9, 736.52, 1739.43], "daily": [0.0, 0.0, 129.44, 0.0, 328.37, 0.0, 278.71], "viewers": [0, 0, 10462, 0, 13664, 0, 10157], "gifters": [0, 0, 26, 0, 63, 0, 22], "hours": [0.0, 0.0, 2.48, 0.0, 2.85, 0.0, 2.18], "top3users": "u_27988145,5900568,15727323"}, {"id": 5181227, "name": "Mamazita_removed_2026-02-02T17:32:19Z", "created": "2022-08-02", "lastActive": "2026-02-02", "culture": "en", "country": "Sweden", "followers": 0, "sessions": 4844, "tag": "onlyfans", "totalEarning": 196074.91, "liveDays7": 0, "weekly": [741.58, 259.51, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "viewers": [0, 0, 0, 0, 0, 0, 0], "gifters": [0, 0, 0, 0, 0, 0, 0], "hours": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "top3users": "u_12757763,14371477,28925125"}, {"id": 10262016, "name": "Ina21271786", "created": "2024-05-04", "lastActive": "2026-02-23", "culture": "en", "country": "Romania", "followers": 114695, "sessions": 2735, "tag": "onlyfans", "totalEarning": 193300.28, "liveDays7": 7, "weekly": [530.68, 766.17, 2066.94, 1248.93, 79.13], "daily": [327.31, 605.52, 51.01, 78.06, 98.72, 80.83, 7.47], "viewers": [8691, 29626, 11744, 18297, 20907, 18278, 7414], "gifters": [11, 104, 28, 46, 53, 30, 8], "hours": [2.75, 6.24, 2.58, 3.64, 4.08, 3.29, 1.42], "top3users": "u_11287191,23328164,7893283"}, {"id": 5849532, "name": "ASHLEY_DN", "created": "2023-01-16", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 139223, "sessions": 1758, "tag": "onlyfans", "totalEarning": 192295.09, "liveDays7": 5, "weekly": [995.33, 866.57, 1404.39, 646.3, 316.34], "daily": [125.48, 115.0, 229.99, 125.22, 50.6, 0.0, 0.0], "viewers": [2259, 3041, 4079, 3416, 2409, 0, 0], "gifters": [33, 51, 87, 57, 40, 0, 0], "hours": [0.63, 0.87, 1.18, 0.88, 0.65, 0.0, 0.0], "top3users": "u_28884418,11288172,20876648"}, {"id": 5062034, "name": "violetprovocateur", "created": "2022-06-30", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 161280, "sessions": 966, "tag": "onlyfans", "totalEarning": 188262.88, "liveDays7": 5, "weekly": [723.88, 53.49, 228.97, 1192.45, 557.07], "daily": [0.0, 0.0, 38.03, 555.55, 63.16, 401.51, 134.19], "viewers": [0, 0, 9250, 15119, 4333, 17865, 11520], "gifters": [0, 0, 29, 123, 23, 120, 33], "hours": [0.0, 0.0, 1.69, 3.18, 0.93, 4.18, 2.35], "top3users": "u_25967757,25668265,5163568"}, {"id": 12525421, "name": "Sexxydaisybadbarbie", "created": "2024-11-17", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 95427, "sessions": 1053, "tag": "onlyfans", "totalEarning": 182993.08, "liveDays7": 5, "weekly": [2101.58, 2178.53, 1710.63, 2306.32, 2380.03], "daily": [187.88, 210.59, 1109.41, 653.76, 144.67, 0.0, 0.0], "viewers": [16365, 9877, 23204, 14664, 9609, 0, 0], "gifters": [113, 128, 163, 189, 90, 0, 0], "hours": [4.39, 3.14, 5.82, 4.06, 2.88, 0.0, 0.0], "top3users": "u_5796410,22139549,24267852"}, {"id": 7395634, "name": "SexySativa_01_", "created": "2023-04-16", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 92643, "sessions": 5898, "tag": "onlyfans", "totalEarning": 182413.13, "liveDays7": 6, "weekly": [859.89, 1308.96, 1044.49, 848.96, 1031.11], "daily": [0.0, 374.88, 176.49, 1.02, 0.0, 158.45, 138.11], "viewers": [3443, 29629, 14913, 655, 0, 7060, 30659], "gifters": [0, 122, 83, 1, 0, 142, 79], "hours": [2.98, 14.39, 4.07, 0.24, 0.0, 3.27, 13.41], "top3users": "u_23148044,28788023,5558858"}, {"id": 10738881, "name": "Poison_ivy_", "created": "2024-06-28", "lastActive": "2026-02-23", "culture": "en", "country": "Canada", "followers": 124369, "sessions": 506, "tag": "onlyfans", "totalEarning": 181252.74, "liveDays7": 2, "weekly": [1157.32, 1377.0, 936.92, 1050.12, 644.92], "daily": [620.73, 0.0, 0.0, 0.0, 429.39, 0.0, 0.0], "viewers": [7953, 0, 0, 0, 7173, 0, 0], "gifters": [176, 0, 0, 0, 148, 0, 0], "hours": [1.22, 0.0, 0.0, 0.0, 1.37, 0.0, 0.0], "top3users": "u_20455401,29022329,28267305"}, {"id": 6111451, "name": "Princess._.D", "created": "2023-03-01", "lastActive": "2026-02-23", "culture": "en", "country": "Romania", "followers": 142033, "sessions": 1310, "tag": "onlyfans", "totalEarning": 178492.23, "liveDays7": 6, "weekly": [1481.27, 1573.67, 2511.44, 2321.89, 1662.13], "daily": [0.0, 217.55, 319.88, 320.7, 808.94, 553.45, 101.36], "viewers": [0, 14916, 21029, 24487, 36306, 22824, 7251], "gifters": [0, 90, 110, 125, 263, 156, 43], "hours": [0.0, 2.86, 3.81, 4.63, 6.9, 3.99, 1.07], "top3users": "u_11785502,10565771,5796410"}, {"id": 4568422, "name": "Diamondfoxx", "created": "2022-01-22", "lastActive": "2026-02-23", "culture": "en", "country": "Canada", "followers": 79743, "sessions": 5289, "tag": "onlyfans", "totalEarning": 175327.01, "liveDays7": 7, "weekly": [505.19, 306.35, 223.0, 111.39, 123.36], "daily": [13.6, 2.96, 15.99, 8.27, 12.98, 26.93, 30.66], "viewers": [3101, 1905, 4548, 3081, 2891, 6798, 8533], "gifters": [8, 4, 9, 4, 5, 16, 11], "hours": [3.88, 2.72, 4.87, 4.11, 3.74, 6.66, 8.6], "top3users": "u_3350060,4838800,21517594"}, {"id": 7728156, "name": "Jjjjj25", "created": "2023-05-10", "lastActive": "2026-02-23", "culture": "en", "country": "Romania", "followers": 147335, "sessions": 991, "tag": "onlyfans", "totalEarning": 173055.73, "liveDays7": 3, "weekly": [1793.33, 0.0, 726.5, 1421.62, 0.0], "daily": [576.6, 584.55, 0.0, 260.48, 0.0, 0.0, 0.0], "viewers": [23074, 25335, 0, 12620, 0, 0, 0], "gifters": [164, 175, 0, 88, 0, 0, 0], "hours": [4.43, 4.89, 0.0, 2.44, 0.0, 0.0, 0.0], "top3users": "u_28571571,8951306,9352135"}, {"id": 5470821, "name": "Gingerlyy", "created": "2022-10-17", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 179386, "sessions": 1769, "tag": "onlyfans", "totalEarning": 172060.45, "liveDays7": 3, "weekly": [2890.71, 2976.37, 2568.92, 1069.99, 1671.69], "daily": [0.0, 64.01, 990.0, 0.0, 0.0, 15.99, 0.0], "viewers": [0, 9629, 28934, 0, 0, 4192, 0], "gifters": [0, 37, 324, 0, 0, 13, 0], "hours": [0.0, 2.87, 7.84, 0.0, 0.0, 2.19, 0.0], "top3users": "u_5859572,8118976,28664522"}, {"id": 6086902, "name": "lilblondie_elizzz", "created": "2023-02-26", "lastActive": "2026-02-23", "culture": "en", "country": "Romania", "followers": 164375, "sessions": 2422, "tag": "onlyfans", "totalEarning": 168158.12, "liveDays7": 4, "weekly": [623.91, 712.44, 1096.54, 1072.62, 230.38], "daily": [315.68, 493.43, 251.5, 12.02, 0.0, 0.0, 0.0], "viewers": [16751, 26390, 24220, 1598, 0, 0, 0], "gifters": [258, 391, 296, 11, 0, 0, 0], "hours": [4.74, 8.11, 8.07, 0.2, 0.0, 0.0, 0.0], "top3users": "u_28804668,8389580,27774949"}, {"id": 11160083, "name": "laylababyy", "created": "2024-08-12", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 94060, "sessions": 450, "tag": "onlyfans", "totalEarning": 160908.0, "liveDays7": 5, "weekly": [2709.01, 1776.81, 2630.39, 3584.14, 3621.16], "daily": [0.0, 2933.59, 15.23, 0.0, 357.07, 0.12, 278.13], "viewers": [0, 13717, 5541, 0, 7316, 1508, 24006], "gifters": [0, 262, 11, 1, 29, 1, 99], "hours": [0.0, 3.78, 0.79, 0.0, 1.31, 0.28, 7.25], "top3users": "u_29124481,28180576,23444104"}, {"id": 6315592, "name": "MartinaXOX", "created": "2023-03-18", "lastActive": "2026-02-23", "culture": "en", "country": "United Kingdom", "followers": 77367, "sessions": 1889, "tag": "onlyfans", "totalEarning": 159003.51, "liveDays7": 3, "weekly": [617.06, 2889.47, 1292.93, 392.17, 892.14], "daily": [56.97, 0.0, 278.49, 56.71, 0.0, 0.0, 0.0], "viewers": [4495, 0, 10798, 5681, 0, 0, 0], "gifters": [34, 0, 62, 39, 0, 0, 0], "hours": [0.81, 0.0, 2.09, 0.98, 0.0, 0.0, 0.0], "top3users": "u_21527673,22850915,29315512"}, {"id": 8459668, "name": "Queenofdirtytalk", "created": "2023-08-23", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 152855, "sessions": 2638, "tag": "onlyfans", "totalEarning": 157837.32, "liveDays7": 4, "weekly": [519.12, 1375.84, 955.6, 752.52, 1908.1], "daily": [0.0, 0.0, 29.43, 82.69, 0.0, 336.8, 303.61], "viewers": [0, 0, 3513, 5081, 0, 10905, 11625], "gifters": [0, 0, 29, 45, 0, 131, 159], "hours": [0.0, 0.0, 0.6, 0.98, 0.0, 2.4, 1.94], "top3users": "u_5386005,29550892,10520739"}, {"id": 6443040, "name": "butterflyunicorn", "created": "2023-03-24", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 194909, "sessions": 1662, "tag": "onlyfans", "totalEarning": 157746.34, "liveDays7": 4, "weekly": [485.3, 308.27, 530.1, 515.39, 325.96], "daily": [5.0, 312.0, 161.39, 0.0, 37.0, 0.0, 0.0], "viewers": [2269, 18705, 21912, 0, 6686, 0, 0], "gifters": [5, 65, 55, 0, 18, 0, 0], "hours": [1.43, 5.47, 6.41, 0.0, 3.16, 0.0, 0.0], "top3users": "u_29726839,20168776,13548770"}, {"id": 5149932, "name": "Jinx444", "created": "2022-07-29", "lastActive": "2026-02-22", "culture": "en", "country": "United States", "followers": 107903, "sessions": 703, "tag": "onlyfans", "totalEarning": 152432.93, "liveDays7": 3, "weekly": [0.0, 1088.23, 1329.05, 791.8, 1647.22], "daily": [0.0, 275.58, 313.82, 202.4, 0.0, 0.0, 0.0], "viewers": [0, 5630, 5431, 1890, 0, 0, 0], "gifters": [0, 81, 150, 97, 0, 0, 0], "hours": [0.0, 0.99, 0.89, 0.41, 0.0, 0.0, 0.0], "top3users": "u_2351034,29315427,27102397"}, {"id": 6454575, "name": "bigbodydara", "created": "2023-03-24", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 143570, "sessions": 374, "tag": "onlyfans", "totalEarning": 150966.45, "liveDays7": 2, "weekly": [358.05, 846.76, 2567.8, 5691.1, 3100.51], "daily": [0.0, 0.0, 4010.94, 0.0, 1680.16, 0.0, 0.0], "viewers": [0, 0, 24534, 0, 13911, 0, 0], "gifters": [0, 0, 386, 0, 183, 0, 0], "hours": [0.0, 0.0, 4.7, 0.0, 2.9, 0.0, 0.0], "top3users": "u_11176183,22794171,23127068"}, {"id": 5922231, "name": "StepsisDenise", "created": "2023-02-02", "lastActive": "2026-02-23", "culture": "en", "country": "Romania", "followers": 187349, "sessions": 2393, "tag": "onlyfans", "totalEarning": 148625.02, "liveDays7": 5, "weekly": [1419.36, 1023.73, 744.29, 1888.29, 783.86], "daily": [589.02, 0.0, 23.4, 0.0, 651.6, 534.23, 90.05], "viewers": [28733, 0, 4627, 0, 23903, 20698, 10955], "gifters": [290, 0, 24, 0, 263, 213, 51], "hours": [6.24, 0.0, 1.36, 0.0, 6.06, 5.71, 2.75], "top3users": "u_24783905,9375114,5922231"}, {"id": 5367212, "name": "JustJade23", "created": "2022-09-18", "lastActive": "2026-02-23", "culture": "en", "country": "United Kingdom", "followers": 189415, "sessions": 1212, "tag": "onlyfans", "totalEarning": 147981.45, "liveDays7": 6, "weekly": [396.77, 171.65, 172.18, 377.34, 234.84], "daily": [63.53, 0.2, 0.0, 111.02, 13.25, 69.25, 120.09], "viewers": [7316, 2425, 0, 8579, 2127, 6802, 7260], "gifters": [17, 1, 0, 12, 6, 14, 20], "hours": [1.52, 0.53, 0.0, 2.13, 0.72, 2.25, 2.19], "top3users": "u_11416060,5209796,29920594"}, {"id": 11888087, "name": ".Charmy", "created": "2024-10-19", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 136138, "sessions": 1286, "tag": "onlyfans", "totalEarning": 147094.47, "liveDays7": 7, "weekly": [1787.73, 924.77, 1086.17, 2056.06, 1387.78], "daily": [164.38, 364.85, 193.55, 39.12, 736.05, 377.92, 180.2], "viewers": [12651, 10662, 9200, 4145, 17305, 14132, 10823], "gifters": [312, 311, 224, 47, 283, 162, 36], "hours": [3.46, 2.27, 2.07, 1.33, 4.44, 3.34, 2.07], "top3users": "u_11176183,28249001,11893199"}, {"id": 12550309, "name": "SweetMelly", "created": "2024-11-18", "lastActive": "2026-02-20", "culture": "en", "country": "United States", "followers": 79783, "sessions": 1005, "tag": "onlyfans", "totalEarning": 145740.89, "liveDays7": 0, "weekly": [6366.43, 5645.03, 1126.85, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "viewers": [0, 0, 0, 0, 0, 0, 0], "gifters": [0, 0, 0, 0, 0, 0, 0], "hours": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "top3users": "u_28386224,25777331,7049007"}, {"id": 10454893, "name": "Melmeow", "created": "2024-05-25", "lastActive": "2026-02-22", "culture": "en", "country": "United States", "followers": 41660, "sessions": 310, "tag": "onlyfans", "totalEarning": 145548.61, "liveDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "viewers": [0, 0, 0, 0, 0, 0, 0], "gifters": [0, 0, 0, 0, 0, 0, 0], "hours": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "top3users": ""}, {"id": 6249157, "name": "MommyDances", "created": "2023-03-15", "lastActive": "2026-02-23", "culture": "en", "country": "Mexico", "followers": 151437, "sessions": 1706, "tag": "onlyfans", "totalEarning": 144779.82, "liveDays7": 4, "weekly": [78.19, 143.31, 744.07, 150.24, 94.39], "daily": [2.52, 0.0, 72.47, 43.09, 0.0, 32.16, 0.0], "viewers": [2550, 0, 7118, 6292, 0, 4971, 0], "gifters": [7, 0, 25, 17, 0, 22, 0], "hours": [0.71, 0.0, 1.56, 2.25, 0.0, 2.38, 0.0], "top3users": "u_10168970,11720117,11623291"}, {"id": 7337718, "name": "SweetPrincess", "created": "2023-04-13", "lastActive": "2026-02-23", "culture": "en", "country": "Germany", "followers": 153300, "sessions": 946, "tag": "onlyfans", "totalEarning": 143921.4, "liveDays7": 6, "weekly": [877.33, 1567.81, 1417.62, 1291.51, 1874.1], "daily": [137.09, 127.0, 328.87, 114.66, 367.18, 0.0, 216.72], "viewers": [19881, 19490, 25330, 10876, 28761, 0, 28911], "gifters": [64, 61, 122, 40, 155, 0, 96], "hours": [5.48, 4.46, 5.66, 3.06, 8.01, 0.0, 6.57], "top3users": "u_5748562,29715417,27919397"}, {"id": 8085178, "name": "KinkyBritishMilf69", "created": "2023-06-24", "lastActive": "2026-02-23", "culture": "en", "country": "United Kingdom", "followers": 96370, "sessions": 1462, "tag": "onlyfans", "totalEarning": 142592.11, "liveDays7": 4, "weekly": [1694.54, 1490.96, 2053.67, 1197.81, 2173.2], "daily": [823.84, 268.08, 105.89, 0.0, 0.0, 0.0, 0.0], "viewers": [13157, 4282, 4799, 1, 0, 0, 0], "gifters": [153, 65, 54, 0, 0, 0, 0], "hours": [2.51, 0.89, 1.31, 0.05, 0.0, 0.0, 0.0], "top3users": "u_25313418,11426421,22755730"}, {"id": 6258732, "name": "SquirtingSkittles22", "created": "2023-03-16", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 119478, "sessions": 1461, "tag": "onlyfans", "totalEarning": 140189.96, "liveDays7": 0, "weekly": [285.5, 225.76, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "viewers": [0, 0, 0, 0, 0, 0, 0], "gifters": [0, 0, 0, 0, 0, 0, 0], "hours": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "top3users": "u_1971595,26712891,8307528"}, {"id": 4170150, "name": "rose.smiley", "created": "2021-12-01", "lastActive": "2026-02-20", "culture": "en", "country": "United States", "followers": 112403, "sessions": 941, "tag": "onlyfans", "totalEarning": 139030.86, "liveDays7": 1, "weekly": [747.01, 809.88, 0.0, 239.36, 0.0], "daily": [239.36, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "viewers": [7756, 0, 0, 0, 0, 0, 0], "gifters": [135, 0, 0, 0, 0, 0, 0], "hours": [1.54, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "top3users": "u_7076147,9086854,27586651"}, {"id": 4886261, "name": "cumwrose", "created": "2022-05-19", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 125315, "sessions": 2355, "tag": "onlyfans", "totalEarning": 138199.13, "liveDays7": 7, "weekly": [52.27, 47.85, 72.98, 59.35, 25.31], "daily": [16.02, 2.83, 8.7, 16.46, 1.32, 4.61, 9.41], "viewers": [7462, 10921, 15067, 28453, 11968, 16638, 24352], "gifters": [12, 8, 11, 19, 3, 8, 13], "hours": [1.3, 2.06, 2.84, 5.53, 2.7, 2.71, 3.87], "top3users": "u_22667817,11895620,24708056"}, {"id": 5101688, "name": "Kayybabyy", "created": "2022-07-13", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 143451, "sessions": 3955, "tag": "onlyfans", "totalEarning": 134989.73, "liveDays7": 3, "weekly": [626.23, 1165.13, 568.55, 419.78, 900.66], "daily": [94.12, 54.81, 0.0, 0.0, 270.85, 0.0, 0.0], "viewers": [13899, 12768, 0, 0, 23912, 0, 0], "gifters": [29, 37, 0, 0, 92, 0, 0], "hours": [3.82, 3.21, 0.0, 0.0, 6.32, 0.0, 0.0], "top3users": "u_5988256,12858560,20825214"}, {"id": 5074160, "name": "Livsworld_", "created": "2022-07-05", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 105335, "sessions": 2577, "tag": "onlyfans", "totalEarning": 134171.27, "liveDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 409.54], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "viewers": [0, 0, 0, 0, 0, 0, 0], "gifters": [0, 0, 0, 0, 0, 0, 0], "hours": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "top3users": "u_4678053,30216153,8011189"}, {"id": 99990001, "name": "⚠️TestStreamer_A_待替换真实数据", "created": "2025-08-01", "lastActive": "2026-02-23", "culture": "en", "country": "United States", "followers": 85000, "sessions": 320, "tag": "onlyfans", "totalEarning": 136000.0, "liveDays7": 6, "weekly": [0, 0, 0, 800, 3200], "daily": [300, 450, 520, 600, 480, 550, 300], "viewers": [8000, 9500, 12000, 11000, 9800, 10500, 8500], "gifters": [45, 60, 80, 75, 55, 70, 50], "hours": [3.5, 4.0, 5.2, 4.8, 3.9, 4.5, 3.2], "top3users": "u_99900001,99900002,99900003"}, {"id": 99990002, "name": "⚠️TestStreamer_B_待替换真实数据", "created": "2025-11-15", "lastActive": "2026-02-23", "culture": "es", "country": "Colombia", "followers": 62000, "sessions": 180, "tag": "onlyfans", "totalEarning": 135200.0, "liveDays7": 7, "weekly": [0, 0, 500, 1200, 2800], "daily": [200, 380, 410, 350, 500, 420, 540], "viewers": [6000, 7500, 9000, 8200, 7800, 8500, 9200], "gifters": [30, 42, 55, 48, 40, 50, 58], "hours": [4.0, 5.5, 6.0, 5.2, 4.8, 5.0, 6.2], "top3users": "u_99900004,99900005,99900006"}];
+
+const WEEKS=["W1(01.19)","W2(01.26)","W3(02.02)","W4(02.09)","W5(02.16)"];
+const DAYS=["02/09","02/10","02/11","02/12","02/13","02/14","02/15"];
+const TC={S:{c:"#f59e0b",bg:"rgba(245,158,11,0.12)",l:"S级·核心"},A:{c:"#8b5cf6",bg:"rgba(139,92,246,0.12)",l:"A级·优质"},B:{c:"#3b82f6",bg:"rgba(59,130,246,0.12)",l:"B级·成长"},C:{c:"#64748b",bg:"rgba(100,116,139,0.12)",l:"C级·观察"}};
+const CC=["#f59e0b","#8b5cf6","#3b82f6","#10b981","#ef4444","#ec4899","#06b6d4"];
+
+const D=RAW.map(r=>{
+  const wCur=r.weekly[4],wPrev=r.weekly[3];
+  const wCh=wPrev?+((wCur-wPrev)/wPrev*100).toFixed(1):wCur>0?999:0;
+  const dCur=r.daily[6],dPrev=r.daily[5];
+  const dCh=dPrev?+((dCur-dPrev)/dPrev*100).toFixed(1):dCur>0?999:0;
+  const vCur=r.viewers[6],vPrev=r.viewers[5];
+  const vCh=vPrev?+((vCur-vPrev)/vPrev*100).toFixed(1):vCur>0?999:0;
+  const gCur=r.gifters[6],gPrev=r.gifters[5];
+  const gCh=gPrev?+((gCur-gPrev)/gPrev*100).toFixed(1):0;
+  const hTotal=r.hours.reduce((a,b)=>a+b,0);
+  const dTotal=r.daily.reduce((a,b)=>a+b,0);
+  const tier=wCur>5000?"S":wCur>2000?"A":wCur>500?"B":"C";
+  // ARPU = 日收入/总观众, ARPPU = 日收入/付费用户, 付费率 = 付费用户/总观众
+  const arpu=vCur>0?+(dCur/vCur).toFixed(4):0;
+  const arppu=gCur>0?+(dCur/gCur).toFixed(2):0;
+  const payRate=vCur>0?+(gCur/vCur*100).toFixed(2):0;
+  // Roster change: new entry vs dropped
+  const isNewEntry=!PREV_ROSTER.includes(r.id);
+  // Stability: CV of 5 weeks (lower=more stable)
+  const wArr=r.weekly,wMean=wArr.reduce((a,b)=>a+b,0)/5;
+  const wStd=Math.sqrt(wArr.reduce((a,v)=>a+(v-wMean)**2,0)/5);
+  const stability=wMean>0?+(wStd/wMean).toFixed(2):0; // CV: 0=perfectly stable, >1=very volatile
+  const isUnstable=stability>0.8&&wCur>0;
+  // Decline reasons
+  // ══════ Funnel Attribution Model ══════
+  // Funnel: 开播天数 → 日均时长 → 时均观众 → 送礼转化率 → 人均贡献
+  const zeroHourDays=r.hours.filter(v=>v===0).length;
+  const activeDays=7-zeroHourDays;
+  const avgHoursPerDay=activeDays>0?+(hTotal/activeDays).toFixed(2):0;
+  const totalV=r.viewers.reduce((a,b)=>a+b,0);
+  const totalG=r.gifters.reduce((a,b)=>a+b,0);
+  const viewersPerHour=hTotal>0?+(totalV/hTotal).toFixed(0):0;
+  const giftRate=totalV>0?+(totalG/totalV*100).toFixed(2):0;
+  const revenuePerGifter=totalG>0?+(dTotal/totalG).toFixed(2):0;
+  // Income concentration
+  const dMax=Math.max(...r.daily), dConc=dTotal>0?dMax/dTotal:0;
+  // Weekly trend
+  const wkUp=r.weekly[2]>0&&r.weekly[3]>r.weekly[2]&&wCur>r.weekly[3];
+  const wkDn=r.weekly[2]>0&&r.weekly[3]<r.weekly[2]&&wCur<r.weekly[3];
+
+  return{...r,wCur,wPrev,wCh,dCur,dPrev,dCh,vCur,vPrev,vCh,gCur,gPrev,gCh,hTotal,dTotal,tier,arpu,arppu,payRate,
+    hAvg:+(hTotal/7).toFixed(1),
+    earningPerHour:hTotal>0?+(dTotal/hTotal).toFixed(1):0,
+    isNewEntry,stability,isUnstable,
+    activeDays,avgHoursPerDay,totalV,totalG,viewersPerHour,giftRate,revenuePerGifter,
+    dConc:+(dConc*100).toFixed(0),wkUp,wkDn
+  };
+});
+
+// ── Compute global baselines (median of active streamers) ──
+const activeD=D.filter(d=>d.activeDays>=2&&d.dTotal>0);
+function median(arr){if(!arr.length)return 0;const s=[...arr].sort((a,b)=>a-b);const m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+const GL={
+  activeDays:median(activeD.map(d=>d.activeDays)),
+  avgHours:median(activeD.map(d=>d.avgHoursPerDay)),
+  viewersPerHour:median(activeD.map(d=>d.viewersPerHour)),
+  giftRate:median(activeD.map(d=>d.giftRate)),
+  revenuePerGifter:median(activeD.map(d=>d.revenuePerGifter)),
+};
+
+// ══════ Composite Tier Scoring ══════
+// Percentile helper: returns 0-100 where 100 = best
+function pctRank(arr,val,higherIsBetter=true){
+  const s=[...arr].sort((a,b)=>a-b);
+  const idx=s.filter(v=>v<val).length;
+  const pct=s.length>1?idx/(s.length-1)*100:50;
+  return higherIsBetter?pct:100-pct;
+}
+// All streamers with any activity in 5 weeks
+const scorable=D.filter(d=>d.weekly.some(w=>w>0));
+const allWMean=scorable.map(d=>(d.weekly.reduce((a,b)=>a+b,0)/5));
+const allCV=scorable.map(d=>d.stability);
+const allActive=scorable.map(d=>d.activeDays);
+const allAvgH=scorable.map(d=>d.avgHoursPerDay);
+const allVPH=scorable.map(d=>d.viewersPerHour);
+const allGR=scorable.map(d=>d.giftRate);
+const allDConc=scorable.map(d=>+d.dConc);
+
+D.forEach((d,di)=>{
+  if(!d.weekly.some(w=>w>0)){
+    d.tier="C";d.tierScore=0;d.tierTrend="—";d.tierDetail={inc:0,stab:0,dili:0,audi:0,sust:0};return;
+  }
+  const wMean5=d.weekly.reduce((a,b)=>a+b,0)/5;
+
+  // Dim 1: Income ability (30%) — 5-week average revenue percentile
+  const incScore=pctRank(allWMean,wMean5);
+
+  // Dim 2: Stability (20%) — CV percentile (lower CV = better)
+  const stabScore=pctRank(allCV,d.stability,false);
+
+  // Dim 3: Diligence (20%) — active days + avg hours
+  const diliDays=pctRank(allActive,d.activeDays);
+  const diliHours=pctRank(allAvgH,d.avgHoursPerDay);
+  const diliScore=diliDays*0.5+diliHours*0.5;
+
+  // Dim 4: Audience attraction (15%) — viewers per hour + gift rate
+  const audiVPH=pctRank(allVPH,d.viewersPerHour);
+  const audiGR=pctRank(allGR,d.giftRate);
+  const audiScore=audiVPH*0.5+audiGR*0.5;
+
+  // Dim 5: Sustainability (15%) — income concentration (lower = better)
+  const sustScore=pctRank(allDConc,+d.dConc,false);
+
+  // Weighted total
+  const total=incScore*0.3+stabScore*0.2+diliScore*0.2+audiScore*0.15+sustScore*0.15;
+  d.tierScore=+total.toFixed(1);
+  d.tierDetail={inc:+incScore.toFixed(0),stab:+stabScore.toFixed(0),dili:+diliScore.toFixed(0),audi:+audiScore.toFixed(0),sust:+sustScore.toFixed(0)};
+
+  // Map score to tier
+  d.tier=total>=75?"S":total>=50?"A":total>=25?"B":"C";
+
+  // Trend: compare W5 vs 5-week mean
+  const ratio=wMean5>0?d.wCur/wMean5:0;
+  d.tierTrend=ratio>=1.3?"↑":ratio>=1.05?"↗":ratio>=0.8?"→":ratio>=0.5?"↘":"↓";
+});
+
+// ── Assign tags using funnel ──
+D.forEach(d=>{
+  const tags=[];
+  // === Positive ===
+  if(d.wPrev===0&&d.wCur>0) tags.push({t:"回归开播",c:"green",tip:"上周零收入，本周重新有收入"});
+  if(d.wkUp) tags.push({t:"持续增长",c:"green",tip:"W3→W4→W5连续3周上涨"});
+  if(d.wCur>0&&d.wCh>30&&d.wCh<999) tags.push({t:"本周爆发",c:"green",tip:`周收入环比+${d.wCh}%`});
+  if(d.stability<0.3&&(d.tier==="S"||d.tier==="A")) tags.push({t:"稳定高产",c:"green",tip:`CV=${d.stability}，5周波动小`});
+
+  // === Funnel decline (周收入下降>10%) ===
+  if(d.wCh<-10&&d.wPrev>0){
+    // Self-baseline: use this streamer's own liveDays7 field or global
+    const selfActiveDays=d.liveDays7||GL.activeDays;
+    let funnelHit=false;
+
+    // Step 1: 开播天数
+    if(d.activeDays===0){
+      tags.push({t:"本周停播",c:"purple",tip:"7天全部零开播"});funnelHit=true;
+    }else if(d.activeDays<=2){
+      tags.push({t:"开播过少",c:"red",tip:`仅${d.activeDays}天开播（全局中位${GL.activeDays}天）`});funnelHit=true;
+    }else if(selfActiveDays>=4&&d.activeDays<=Math.ceil(selfActiveDays*0.5)){
+      tags.push({t:"开播减少",c:"red",tip:`${d.activeDays}天，低于自身常规${selfActiveDays}天的一半`});funnelHit=true;
+    }
+
+    // Step 2: 日均时长
+    if(d.activeDays>0&&d.avgHoursPerDay<GL.avgHours*0.4){
+      tags.push({t:"时长不足",c:"red",tip:`日均${d.avgHoursPerDay}h，全局中位${GL.avgHours.toFixed(1)}h`});funnelHit=true;
+    }
+
+    // Step 3: 时均观众
+    if(d.hTotal>0&&d.viewersPerHour<GL.viewersPerHour*0.3){
+      tags.push({t:"观众偏低",c:"orange",tip:`时均${d.viewersPerHour}人，全局中位${GL.viewersPerHour}人`});funnelHit=true;
+    }
+
+    // Step 4: 送礼转化率
+    if(d.totalV>0&&d.giftRate<GL.giftRate*0.4){
+      tags.push({t:"转化率低",c:"orange",tip:`送礼率${d.giftRate}%，全局中位${GL.giftRate.toFixed(2)}%`});funnelHit=true;
+    }
+
+    // Step 5: 人均贡献
+    if(d.totalG>0&&d.revenuePerGifter<GL.revenuePerGifter*0.4){
+      tags.push({t:"人均偏低",c:"orange",tip:`$${d.revenuePerGifter}/人，全局中位$${GL.revenuePerGifter.toFixed(2)}`});funnelHit=true;
+    }
+
+    // Trend-based
+    if(d.wkDn) tags.push({t:"连续下滑",c:"red",tip:"W3→W4→W5连续3周下降"});
+    // Concentration
+    if(d.dConc>60&&d.dTotal>100) tags.push({t:"收入集中",c:"orange",tip:`单日最高占${d.dConc}%`});
+
+    // Fallback: revenue dropped but funnel looks normal → likely 大R流失
+    if(!funnelHit&&d.wCh<-20){
+      tags.push({t:"疑似大R流失",c:"red",tip:`各环节无明显异常，收入跌${d.wCh}%，可能核心大R减少打赏`});
+    }
+  }
+
+  // === Warning (不论涨跌) ===
+  if(d.wCur>0&&d.activeDays<=2&&d.activeDays<5) tags.push({t:"低活跃",c:"orange",tip:`仅${d.activeDays}天开播`});
+  if(d.wCur===0&&d.wPrev===0&&d.weekly[3]===0) tags.push({t:"长期沉默",c:"gray",tip:"≥3周零收入"});
+  if(d.dConc>70&&d.wCh>=0&&d.dTotal>200) tags.push({t:"靠单场",c:"orange",tip:`${d.dConc}%收入来自单日`});
+
+  d.tags=tags;
+});
+
+let sortKey="totalEarning",sortD="desc",tierF="ALL",search="",tab="ranking";
+let compared=new Set();let charts={};
+
+// Roster tracking: mark dropped streamers (by totalEarning rank)
+const byTotal=[...D].sort((a,b)=>b.totalEarning-a.totalEarning);
+byTotal.forEach((d,i)=>{d.totalRank=i+1;});
+D.forEach(d=>{
+  d.isDropped=PREV_ROSTER.includes(d.id)&&d.totalRank>50;
+});
+
+function mkRanks(k){const s=[...D].sort((a,b)=>b[k]-a[k]);const m={};s.forEach((d,i)=>m[d.name]=i+1);return m;}
+const wPrevR=mkRanks("wPrev"),wCurR=mkRanks("wCur"),dPrevR=mkRanks("dPrev"),dCurR=mkRanks("dCur");
+// Total earning rank: current vs previous (totalEarning - W5)
+D.forEach(d=>d.prevTotal=d.totalEarning-d.wCur);
+const tCurR=mkRanks("totalEarning"),tPrevR=mkRanks("prevTotal");
+
+function fmt(v){return v>=10000?`$${(v/1000).toFixed(1)}k`:v>=1?`$${v.toLocaleString(undefined,{maximumFractionDigits:0})}`:v>0?`$${v.toFixed(2)}`:"$0"}
+function fmtN(v){return v>=10000?`${(v/1000).toFixed(1)}k`:v.toLocaleString()}
+function spark(data,color,w=90,h=32){
+  const mn=Math.min(...data),mx=Math.max(...data),r=mx-mn||1;
+  const pad=6,ph=h-pad*2;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${pad+ph-((v-mn)/r)*ph}`).join(" ");
+  const fy=pad+ph-((data[0]-mn)/r)*ph;
+  const ly=pad+ph-((data[data.length-1]-mn)/r)*ph;
+  const fv=data[0]>=1000?(data[0]/1000).toFixed(1)+"k":data[0]>=100?Math.round(data[0]):data[0];
+  const lv=data[data.length-1]>=1000?(data[data.length-1]/1000).toFixed(1)+"k":data[data.length-1]>=100?Math.round(data[data.length-1]):data[data.length-1];
+  return`<svg width="${w+8}" height="${h}" style="display:block"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="0" cy="${fy}" r="1.5" fill="${color}"/><circle cx="${w}" cy="${ly}" r="2" fill="${color}"/><text x="0" y="${Math.max(8,fy-4)}" fill="#94a3b8" font-size="7" font-family="JetBrains Mono,monospace">${fv}</text><text x="${w}" y="${Math.max(8,ly-4)}" fill="#e2e8f0" font-size="7" font-family="JetBrains Mono,monospace" text-anchor="end">${lv}</text></svg>`;
+}
+function rankArrow(d){if(d>0)return`<span class="mono change-pos" style="font-weight:600;font-size:11px">▲${d}</span>`;if(d<0)return`<span class="mono change-neg" style="font-weight:600;font-size:11px">▼${Math.abs(d)}</span>`;return`<span style="color:#475569;font-size:11px">—</span>`;}
+function chgClass(v){return v>0?"change-pos":v<0?"change-neg":"change-neu"}
+function destroyC(k){if(charts[k]){charts[k].destroy();charts[k]=null;}}
+function cmpOrTop5(){return compared.size>0?D.filter(d=>compared.has(d.name)):[...D].sort((a,b)=>b.wCur-a.wCur).slice(0,5);}
+const bOpts={responsive:true,plugins:{legend:{labels:{color:"#94a3b8",font:{size:11}}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",borderColor:"rgba(148,163,184,0.2)",borderWidth:1}},scales:{x:{ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}},y:{ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}}}};
+
+// ══════ STATS ══════
+function renderStats(){
+  const tr=D.reduce((s,d)=>s+d.wCur,0),pr=D.reduce((s,d)=>s+d.wPrev,0);
+  const tc=pr?((tr-pr)/pr*100).toFixed(1):0;
+  const up=D.filter(d=>d.wCh>0).length,dn=D.filter(d=>d.wCh<0).length;
+  const newCount=D.filter(d=>d.isNewEntry).length;
+  const droppedCount=D.filter(d=>d.isDropped).length;
+  const unstableCount=D.filter(d=>d.isUnstable).length;
+  const PLATFORM_TOTAL_W5=150000; // ⚠️ 待替换为真实全平台周收入
+  const top50Pct=PLATFORM_TOTAL_W5>0?(tr/PLATFORM_TOTAL_W5*100).toFixed(1):0;
+  const cards=[
+    {l:"本周总收入(W5)",i:"💰",v:fmt(tr),s:`${tc>0?"+":""}${tc}%`,c:tc>0?"#10b981":"#ef4444"},
+    {l:"Top50 占全平台 ⚠️",i:"📊",v:`${top50Pct}%`,s:`${fmt(tr)} / ${fmt(PLATFORM_TOTAL_W5)} (待替换真实数据)`,c:top50Pct>50?"#f59e0b":"#94a3b8"},
+    {l:"📈 上升 / 📉 下降",i:"",v:`${up} / ${dn}`,s:`共 ${D.length} 人`,c:"#94a3b8"},
+    {l:"🆕 新入围",i:"",v:newCount,s:newCount>0?D.filter(d=>d.isNewEntry).map(d=>d.name.slice(0,10)).join(", "):"无变动",c:"#10b981"},
+    {l:"⬇️ 掉出Top50",i:"",v:droppedCount,s:droppedCount>0?D.filter(d=>d.isDropped).map(d=>d.name.slice(0,10)).join(", "):"无变动",c:droppedCount>0?"#ef4444":"#94a3b8"},
+  ];
+  document.getElementById("statsGrid").innerHTML=
+    `<div style="grid-column:1/-1;font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:6px;margin-bottom:-4px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#8b5cf6"></span>📆 周汇总 (W5: 02.16-02.22)</div>`+
+    cards.map((c,i)=>`<div class="stat-card" style="animation-delay:${i*0.06}s"><div class="stat-label"><span>${c.l}</span><span style="font-size:16px">${c.i}</span></div><div class="stat-value">${c.v}</div><div class="stat-sub" style="color:${c.c}">${c.s}</div></div>`).join("");
+  const dtr=D.reduce((s,d)=>s+d.dCur,0),dpr=D.reduce((s,d)=>s+d.dPrev,0);
+  const dtc=dpr?((dtr-dpr)/dpr*100).toFixed(1):0;
+  const dup=D.filter(d=>d.dCh>0).length,ddn=D.filter(d=>d.dCh<0).length;
+  const totalV=D.reduce((s,d)=>s+d.vCur,0);
+  const totalG=D.reduce((s,d)=>s+d.gCur,0);
+  const dworst=D.filter(d=>d.dPrev>0).sort((a,b)=>a.dCh-b.dCh)[0]||{name:"-",dCh:0};
+  const dcards=[
+    {l:"02/15 总收入",i:"💵",v:fmt(dtr),s:`${dtc>0?"+":""}${dtc}%`,c:dtc>0?"#10b981":"#ef4444"},
+    {l:"日收入上升",i:"📈",v:dup,s:`/ ${D.length}`,c:"#10b981"},
+    {l:"日收入下降",i:"📉",v:ddn,s:`/ ${D.length}`,c:"#ef4444"},
+    {l:"02/15 总观众",i:"👁",v:fmtN(totalV),s:"人",c:"#06b6d4"},
+    {l:"02/15 送礼用户",i:"💝",v:fmtN(totalG),s:"人",c:"#a855f7"},
+    {l:"日最大跌幅",i:"💧",v:dworst.name.length>12?dworst.name.slice(0,12)+"..":dworst.name,s:`${dworst.dCh}%`,c:"#ef4444"},
+  ];
+  document.getElementById("dailyStatsGrid").innerHTML=
+    `<div style="grid-column:1/-1;font-size:12px;font-weight:600;color:#64748b;display:flex;align-items:center;gap:6px;margin-bottom:-4px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f59e0b"></span>📅 日汇总 (02.15)</div>`+
+    dcards.map((c,i)=>`<div class="stat-card" style="animation-delay:${(i+5)*0.06}s;border-left:2px solid rgba(245,158,11,0.2)"><div class="stat-label"><span>${c.l}</span><span style="font-size:16px">${c.i}</span></div><div class="stat-value">${c.v}</div><div class="stat-sub" style="color:${c.c}">${c.s}</div></div>`).join("");
+}
+
+function renderTiers(){
+  const ct={S:0,A:0,B:0,C:0};D.forEach(d=>ct[d.tier]++);
+  const newN=D.filter(d=>d.isNewEntry).length,dropN=D.filter(d=>d.isDropped).length;
+  const ts=[{k:"ALL",l:"全部",n:D.length},...Object.entries(TC).map(([k,v])=>({k,l:v.l,n:ct[k],c:v.c,bg:v.bg})),
+    {k:"NEW",l:"🆕新入围",n:newN,c:"#10b981",bg:"rgba(16,185,129,0.12)"},
+    {k:"DROP",l:"⬇️掉出",n:dropN,c:"#ef4444",bg:"rgba(239,68,68,0.12)"}
+  ];
+  document.getElementById("tierGroup").innerHTML=ts.map(t=>{
+    const a=tierF===t.k,bg=a?(t.bg||"rgba(148,163,184,0.15)"):"transparent",c=a?(t.c||"#e2e8f0"):"#64748b";
+    return`<button class="tier-btn" data-tier="${t.k}" style="background:${bg};color:${c}">${t.l||"全部"} (${t.n})</button>`;
+  }).join("");
+}
+
+// ══════ TABLE ══════
+function filtered(){
+  let d=[...D];
+  if(tierF==="NEW")d=d.filter(x=>x.isNewEntry);
+  else if(tierF==="DROP")d=d.filter(x=>x.isDropped);
+  else if(tierF!=="ALL")d=d.filter(x=>x.tier===tierF);
+  if(search)d=d.filter(x=>x.name.toLowerCase().includes(search.toLowerCase()));
+  d.sort((a,b)=>sortD==="desc"?(b[sortKey]||0)-(a[sortKey]||0):(a[sortKey]||0)-(b[sortKey]||0));
+  return d.map((x,i)=>({...x,rank:i+1}));
+}
+function renderTable(){
+  const sk=sortKey,sd=sortD;
+  function si(k){return sk===k?(sd==="desc"?" ↓":" ↑"):"";}
+  function sc(k){return sk===k?" sorted":"";}
+  document.getElementById("tableHead").innerHTML=`
+    <tr>
+      <th rowspan="2" class="sortable${sc("rank")}" data-sort="rank" style="width:36px;text-align:left">#${si("rank")}</th>
+      <th rowspan="2" style="width:46px" title="总收入排名变动(W5贡献后)">变动</th>
+      <th rowspan="2" style="width:126px;text-align:left">主播</th>
+      <th rowspan="2" style="width:72px">ID</th>
+      <th rowspan="2" class="sortable${sc("tierScore")}" data-sort="tierScore" style="width:50px">层级${si("tierScore")}</th>
+      <th rowspan="2" class="sortable${sc("totalEarning")}" data-sort="totalEarning" style="width:80px"><span style="color:#10b981">总收入</span>${si("totalEarning")}</th>
+      <th colspan="4" class="group-header" style="background:rgba(245,158,11,0.04);border-left:1px solid rgba(245,158,11,0.15)">📅 日维度 (02.15)</th>
+      <th colspan="4" class="group-header" style="background:rgba(139,92,246,0.04);border-left:1px solid rgba(139,92,246,0.15)">📆 周维度 (W5)</th>
+      <th rowspan="2" class="sortable${sc("vCur")}" data-sort="vCur" style="width:60px">👁观众${si("vCur")}</th>
+      <th rowspan="2" style="width:88px">👁趋势</th>
+      <th rowspan="2" class="sortable${sc("gCur")}" data-sort="gCur" style="width:50px">💝送礼${si("gCur")}</th>
+      <th rowspan="2" style="width:88px">💝趋势</th>
+      <th rowspan="2" class="sortable${sc("hAvg")}" data-sort="hAvg" style="width:50px">⏱时长${si("hAvg")}</th>
+      <th rowspan="2" style="width:88px">⏱趋势</th>
+      <th rowspan="2" class="sortable${sc("earningPerHour")}" data-sort="earningPerHour" style="width:50px">$/h${si("earningPerHour")}</th>
+      <th rowspan="2" style="width:36px">对比</th>
+    </tr><tr>
+      <th class="sortable${sc("dCur")}" data-sort="dCur" style="width:76px;background:rgba(245,158,11,0.04);border-left:1px solid rgba(245,158,11,0.08)">日收入${si("dCur")}</th>
+      <th class="sortable${sc("dCh")}" data-sort="dCh" style="width:58px;background:rgba(245,158,11,0.04)">日环比${si("dCh")}</th>
+      <th style="width:88px;background:rgba(245,158,11,0.04)">日趋势</th>
+      <th style="width:56px;background:rgba(245,158,11,0.04)">日排名</th>
+      <th class="sortable${sc("wCur")}" data-sort="wCur" style="width:80px;background:rgba(139,92,246,0.04);border-left:1px solid rgba(139,92,246,0.08)">周收入${si("wCur")}</th>
+      <th class="sortable${sc("wCh")}" data-sort="wCh" style="width:58px;background:rgba(139,92,246,0.04)">周环比${si("wCh")}</th>
+      <th style="width:88px;background:rgba(139,92,246,0.04)">周趋势</th>
+      <th style="width:56px;background:rgba(139,92,246,0.04)">周排名</th>
+    </tr>`;
+  const data=filtered(),medals=["🥇","🥈","🥉"];
+  document.getElementById("tableBody").innerHTML=data.map((d,i)=>{
+    const t=TC[d.tier],ic=compared.has(d.name);
+    const dRD=(dPrevR[d.name]||50)-(dCurR[d.name]||50),wRD=(wPrevR[d.name]||50)-(wCurR[d.name]||50);
+    const tRD=(tPrevR[d.name]||50)-(tCurR[d.name]||50);
+    const wCD=d.wCh>=999?"NEW":`${d.wCh>0?"+":""}${d.wCh}%`;
+    const dCD=d.dCh>=999?"NEW":`${d.dCh>0?"+":""}${d.dCh}%`;
+    return`<tr class="${ic?"compared":""}${d.isDropped?" dropped":""}" data-name="${d.name}">
+      <td class="mono" style="text-align:left;font-weight:700;font-size:14px;color:${i<3?"#f59e0b":"#94a3b8"}">${i<3?medals[i]:d.rank}</td>
+      <td style="text-align:center">${rankArrow(tRD)}</td>
+      <td><div style="font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap" title="Top3 大R: ${d.top3users||'无数据'}"><div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,${t.c}33,${t.c}11);border:1px solid ${t.c}44;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${t.c};flex-shrink:0">${d.name[0]}</div><div><div style="font-size:12px">${d.name.length>14?d.name.slice(0,14)+"..":d.name}${d.isNewEntry?'<span style="margin-left:4px;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:800;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);vertical-align:middle">🆕</span>':''}${d.isDropped?'<span style="margin-left:4px;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:800;background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.25);vertical-align:middle">⬇️</span>':''}${d.isUnstable?'<span style="margin-left:3px;font-size:10px" title="CV='+d.stability+'">⚡</span>':''}</div><div style="font-size:10px;color:#64748b">${d.country}${d.top3users?" · 🐋":""}</div></div></div></td>
+      <td class="mono" style="text-align:center;font-size:10px;color:#64748b">${d.id}</td>
+      <td style="text-align:center"><span style="padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700;background:${t.bg};color:${t.c};border:1px solid ${t.c}33;cursor:help" title="综合评分:${d.tierScore} 收入${d.tierDetail.inc} 稳定${d.tierDetail.stab} 勤奋${d.tierDetail.dili} 观众${d.tierDetail.audi} 持续${d.tierDetail.sust}">${d.tier}${d.tierTrend}</span></td>
+      <td class="mono" style="text-align:center;font-weight:700;font-size:12px;color:#10b981">${fmt(d.totalEarning)}</td>
+      <td class="mono col-daily" style="text-align:center;font-weight:700;font-size:12px;border-left:1px solid rgba(245,158,11,0.06)">${fmt(d.dCur)}</td>
+      <td class="mono col-daily ${chgClass(d.dCh)}" style="text-align:center;font-weight:600;font-size:11px">${dCD}</td>
+      <td class="col-daily" style="text-align:center">${spark(d.daily,d.dCh>=0?"#f59e0b":"#ef4444")}</td>
+      <td class="col-daily" style="text-align:center">${rankArrow(dRD)}</td>
+      <td class="mono col-weekly" style="text-align:center;font-weight:700;font-size:12px;border-left:1px solid rgba(139,92,246,0.06)">${fmt(d.wCur)}</td>
+      <td class="mono col-weekly ${chgClass(d.wCh)}" style="text-align:center;font-weight:600;font-size:11px">${wCD}</td>
+      <td class="col-weekly" style="text-align:center">${spark(d.weekly,d.wCh>=0?"#8b5cf6":"#ef4444")}</td>
+      <td class="col-weekly" style="text-align:center">${rankArrow(wRD)}</td>
+      <td class="mono" style="text-align:center;font-size:11px;font-weight:600">${d.vCur>0?fmtN(d.vCur):"-"}</td>
+      <td style="text-align:center">${d.vCur>0||d.vPrev>0?spark(d.viewers,d.vCh>=0?"#06b6d4":"#ef4444"):"<span style='color:#334155;font-size:10px'>—</span>"}</td>
+      <td class="mono" style="text-align:center;font-size:11px;font-weight:600">${d.gCur||"-"}</td>
+      <td style="text-align:center">${d.gCur>0||d.gPrev>0?spark(d.gifters,d.gCh>=0?"#a855f7":"#ef4444"):"<span style='color:#334155;font-size:10px'>—</span>"}</td>
+      <td class="mono" style="text-align:center;font-size:11px;color:${d.hAvg<1?"#ef4444":d.hAvg<3?"#f59e0b":"#10b981"}">${d.hAvg>0?d.hAvg+"h":"-"}</td>
+      <td style="text-align:center">${d.hTotal>0?spark(d.hours,d.hours[6]>=d.hours[5]?"#10b981":"#ef4444"):"<span style='color:#334155;font-size:10px'>—</span>"}</td>
+      <td class="mono" style="text-align:center;font-size:11px;font-weight:600;color:#06b6d4">${d.earningPerHour>0?"$"+d.earningPerHour:"-"}</td>
+      <td style="text-align:center"><button class="compare-btn${ic?" active":""}" data-cmp="${d.name}">${ic?"✓":"+"}</button></td>
+    </tr>`;
+  }).join("");
+}
+
+// ══════ TREND ══════
+function renderTrendTab(){
+  const ss=cmpOrTop5();
+  const lbl=compared.size>0?`已选: ${[...compared].join(", ")}`:"默认展示 Top 5 主播";
+  ["weekTrendSub","dayTrendSub","gifterTrendSub","hoursTrendSub"].forEach(id=>document.getElementById(id).textContent=lbl);
+
+  destroyC("wt");charts.wt=new Chart(document.getElementById("weekTrendChart"),{type:"line",data:{labels:WEEKS,datasets:ss.map((s,i)=>({label:s.name,data:s.weekly,borderColor:CC[i%7],backgroundColor:CC[i%7]+"18",fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:CC[i%7],borderWidth:2}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,ticks:{...bOpts.scales.y.ticks,callback:v=>fmt(v)}}}}});
+  destroyC("dt");charts.dt=new Chart(document.getElementById("dayTrendChart"),{type:"line",data:{labels:DAYS,datasets:ss.map((s,i)=>({label:s.name,data:s.daily,borderColor:CC[i%7],backgroundColor:CC[i%7]+"18",fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:CC[i%7],borderWidth:2}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,ticks:{...bOpts.scales.y.ticks,callback:v=>fmt(v)}}}}});
+  destroyC("gt");charts.gt=new Chart(document.getElementById("gifterTrendChart"),{type:"line",data:{labels:DAYS,datasets:ss.map((s,i)=>({label:s.name,data:s.gifters,borderColor:CC[i%7],tension:0.3,pointRadius:3,pointBackgroundColor:CC[i%7],borderWidth:2}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${c.raw}人`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,title:{display:true,text:"送礼用户数",color:"#64748b"}}}}});
+  destroyC("ht");charts.ht=new Chart(document.getElementById("hoursTrendChart"),{type:"line",data:{labels:DAYS,datasets:ss.map((s,i)=>({label:s.name,data:s.hours,borderColor:CC[i%7],tension:0.3,pointRadius:3,pointBackgroundColor:CC[i%7],borderWidth:2}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${c.raw}h`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,title:{display:true,text:"开播时长(h)",color:"#64748b"}}}}});
+
+  const top=[...D].sort((a,b)=>b.wCur-a.wCur).slice(0,20);
+  destroyC("tb");charts.tb=new Chart(document.getElementById("topBarChart"),{type:"bar",data:{labels:top.map(d=>d.name.length>12?d.name.slice(0,12)+"..":d.name),datasets:[{label:"W4",data:top.map(d=>d.wPrev),backgroundColor:"rgba(148,163,184,0.2)",borderRadius:4},{label:"W5",data:top.map(d=>d.wCur),backgroundColor:"#f59e0b",borderRadius:4}]},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},scales:{x:{ticks:{color:"#64748b",maxRotation:45,font:{size:9}},grid:{display:false}},y:{ticks:{color:"#64748b",callback:v=>fmt(v)},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+
+  const all=[...D].sort((a,b)=>b.wCur-a.wCur);
+  destroyC("ab");charts.ab=new Chart(document.getElementById("allBarChart"),{type:"bar",data:{labels:all.map((d,i)=>`${i+1}.${d.name.length>8?d.name.slice(0,8)+"..":d.name}`),datasets:[{label:"总收入",data:all.map(d=>d.totalEarning),backgroundColor:all.map(d=>TC[d.tier].c+"33"),borderColor:all.map(d=>TC[d.tier].c),borderWidth:1,borderRadius:3},{label:"W5",data:all.map(d=>d.wCur),backgroundColor:all.map(d=>TC[d.tier].c+"99"),borderRadius:3}]},options:{responsive:true,plugins:{legend:{labels:{color:"#94a3b8",font:{size:11}}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",borderColor:"rgba(148,163,184,0.2)",borderWidth:1,callbacks:{title:c=>{const d=all[c[0].dataIndex];return`#${c[0].dataIndex+1} ${d.name} [${d.tier}]`;},label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},scales:{x:{ticks:{color:"#64748b",font:{size:7},maxRotation:90,minRotation:45},grid:{display:false}},y:{ticks:{color:"#64748b",callback:v=>fmt(v)},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+}
+
+// ══════ VIEWERS ══════
+function renderViewerTab(){
+  const ss=cmpOrTop5();
+  document.getElementById("viewerTrendSub").textContent=compared.size>0?`已选: ${[...compared].join(", ")}`:"默认展示 Top 5 主播";
+  destroyC("vt");charts.vt=new Chart(document.getElementById("viewerTrendChart"),{type:"line",data:{labels:DAYS,datasets:ss.map((s,i)=>({label:s.name,data:s.viewers,borderColor:CC[i%7],backgroundColor:CC[i%7]+"18",fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:CC[i%7],borderWidth:2}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${c.raw.toLocaleString()}人`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,ticks:{...bOpts.scales.y.ticks,callback:v=>fmtN(v)}}}}});
+
+  // Scatter
+  const scatterData=D.filter(d=>d.vCur>0&&d.dCur>0);
+  destroyC("vs");charts.vs=new Chart(document.getElementById("viewerScatter"),{type:"bubble",data:{datasets:Object.entries(TC).map(([tier,cfg])=>({label:cfg.l,data:scatterData.filter(d=>d.tier===tier).map(d=>({x:d.vCur,y:d.dCur,r:Math.max(4,Math.min(20,Math.sqrt(d.followers)/50)),name:d.name})),backgroundColor:cfg.c+"55",borderColor:cfg.c,borderWidth:1}))},options:{responsive:true,plugins:{legend:{labels:{color:"#94a3b8",font:{size:11}}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",borderColor:"rgba(148,163,184,0.2)",borderWidth:1,callbacks:{title:c=>c[0].raw.name,label:c=>[`观众: ${c.raw.x.toLocaleString()}`,`日收入: ${fmt(c.raw.y)}`,`ARPU: $${(c.raw.y/c.raw.x).toFixed(4)}`]}}},scales:{x:{title:{display:true,text:"观众数",color:"#64748b"},ticks:{color:"#64748b",callback:v=>fmtN(v)},grid:{color:"rgba(148,163,184,0.06)"}},y:{title:{display:true,text:"日收入",color:"#64748b"},ticks:{color:"#64748b",callback:v=>fmt(v)},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+
+  // ARPPU (per paying user)
+  const arppuData=D.filter(d=>d.gCur>0&&d.dCur>0).sort((a,b)=>b.arppu-a.arppu).slice(0,20);
+  destroyC("ap");charts.ap=new Chart(document.getElementById("arppuChart"),{type:"bar",data:{labels:arppuData.map(d=>d.name),datasets:[{data:arppuData.map(d=>d.arppu),backgroundColor:arppuData.map(d=>TC[d.tier].c+"77"),borderColor:arppuData.map(d=>TC[d.tier].c),borderWidth:1,borderRadius:4,barThickness:14}]},options:{indexAxis:"y",responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",callbacks:{label:c=>{const d=arppuData[c.dataIndex];return[`ARPPU: $${d.arppu}`,`日收入: ${fmt(d.dCur)}`,`送礼用户: ${d.gCur}`,`付费率: ${d.payRate}%`];}}}},scales:{x:{title:{display:true,text:"$/付费用户",color:"#64748b"},ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}},y:{ticks:{color:"#94a3b8",font:{size:9}},grid:{display:false}}}}});
+
+  // Payment Rate (付费率)
+  const prData=D.filter(d=>d.vCur>0&&d.gCur>0).sort((a,b)=>b.payRate-a.payRate).slice(0,20);
+  destroyC("pr");charts.pr=new Chart(document.getElementById("payRateChart"),{type:"bar",data:{labels:prData.map(d=>d.name),datasets:[{data:prData.map(d=>+d.payRate),backgroundColor:prData.map(d=>TC[d.tier].c+"77"),borderColor:prData.map(d=>TC[d.tier].c),borderWidth:1,borderRadius:4,barThickness:14}]},options:{indexAxis:"y",responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",callbacks:{label:c=>{const d=prData[c.dataIndex];return[`付费率: ${d.payRate}%`,`送礼: ${d.gCur}人`,`观众: ${fmtN(d.vCur)}`,`ARPPU: $${d.arppu}`];}}}},scales:{x:{title:{display:true,text:"付费率 %",color:"#64748b"},ticks:{color:"#64748b",callback:v=>v+"%"},grid:{color:"rgba(148,163,184,0.06)"}},y:{ticks:{color:"#94a3b8",font:{size:9}},grid:{display:false}}}}});
+
+  // ARPU (per viewer)
+  const arpuData=D.filter(d=>d.vCur>0&&d.dCur>0).sort((a,b)=>b.arpu-a.arpu).slice(0,20);
+  destroyC("au");charts.au=new Chart(document.getElementById("arpuChart"),{type:"bar",data:{labels:arpuData.map(d=>d.name),datasets:[{data:arpuData.map(d=>d.arpu),backgroundColor:arpuData.map(d=>TC[d.tier].c+"77"),borderColor:arpuData.map(d=>TC[d.tier].c),borderWidth:1,borderRadius:4,barThickness:14}]},options:{indexAxis:"y",responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",callbacks:{label:c=>{const d=arpuData[c.dataIndex];return[`ARPU: $${d.arpu}`,`日收入: ${fmt(d.dCur)}`,`观众: ${fmtN(d.vCur)}`,`付费率: ${d.payRate}%`];}}}},scales:{x:{title:{display:true,text:"$/观众",color:"#64748b"},ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}},y:{ticks:{color:"#94a3b8",font:{size:9}},grid:{display:false}}}}});
+
+  // Viewer bar
+  const vTop=D.filter(d=>d.vCur>0).sort((a,b)=>b.vCur-a.vCur).slice(0,30);
+  destroyC("vb");charts.vb=new Chart(document.getElementById("viewerBarChart"),{type:"bar",data:{labels:vTop.map(d=>d.name.length>12?d.name.slice(0,12)+"..":d.name),datasets:[{label:"02/14",data:vTop.map(d=>d.vPrev),backgroundColor:"rgba(148,163,184,0.15)",borderRadius:3},{label:"02/15",data:vTop.map(d=>d.vCur),backgroundColor:vTop.map(d=>TC[d.tier].c+"88"),borderColor:vTop.map(d=>TC[d.tier].c),borderWidth:1,borderRadius:3}]},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{afterBody:c=>{const d=vTop[c[0].dataIndex];return[`日环比: ${d.vCh>=999?"NEW":(d.vCh>0?"+":"")+d.vCh+"%"}`];}}}},scales:{x:{ticks:{color:"#64748b",maxRotation:45,font:{size:9}},grid:{display:false}},y:{ticks:{color:"#64748b",callback:v=>fmtN(v)},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+
+  // ══════ QUADRANT: 付费率 vs ARPPU ══════
+  const qd=D.filter(d=>d.vCur>0&&d.gCur>0&&d.dCur>0);
+  const medPR=median(qd.map(d=>+d.payRate));
+  const medARPPU=median(qd.map(d=>d.arppu));
+
+  // Classify
+  const typeColors={"优质型":"#10b981","大众型":"#3b82f6","鲸鱼依赖型":"#f59e0b","低效型":"#64748b"};
+  const typeBgs={"优质型":"rgba(16,185,129,0.08)","大众型":"rgba(59,130,246,0.08)","鲸鱼依赖型":"rgba(245,158,11,0.08)","低效型":"rgba(100,116,139,0.08)"};
+  D.forEach(d=>{
+    if(d.vCur===0||d.gCur===0||d.dCur===0){d.streamerType="无数据";return;}
+    const hp=+d.payRate>=medPR, ha=d.arppu>=medARPPU;
+    d.streamerType=hp&&ha?"优质型":hp&&!ha?"大众型":!hp&&ha?"鲸鱼依赖型":"低效型";
+  });
+
+  // Quadrant scatter
+  const quadTypes=["优质型","大众型","鲸鱼依赖型","低效型"];
+  destroyC("qd");charts.qd=new Chart(document.getElementById("quadrantChart"),{type:"scatter",data:{datasets:[
+    ...quadTypes.map(typ=>({label:typ,data:qd.filter(d=>d.streamerType===typ).map(d=>({x:+d.payRate,y:d.arppu,name:d.name,tier:d.tier})),backgroundColor:typeColors[typ]+"88",borderColor:typeColors[typ],pointRadius:6,pointHoverRadius:9})),
+  ]},options:{responsive:true,plugins:{legend:{labels:{color:"#94a3b8",font:{size:11}}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",callbacks:{title:c=>c[0].raw.name,label:c=>[`类型: ${c.dataset.label}`,`付费率: ${c.raw.x}%`,`ARPPU: $${c.raw.y}`,`层级: ${c.raw.tier}`]}},annotation:{annotations:{lineX:{type:"line",xMin:medPR,xMax:medPR,borderColor:"rgba(148,163,184,0.3)",borderWidth:1,borderDash:[4,4]},lineY:{type:"line",yMin:medARPPU,yMax:medARPPU,borderColor:"rgba(148,163,184,0.3)",borderWidth:1,borderDash:[4,4]}}}},scales:{x:{title:{display:true,text:`付费率 % (中位数 ${medPR.toFixed(2)}%)`,color:"#64748b"},ticks:{color:"#64748b",callback:v=>v+"%"},grid:{color:"rgba(148,163,184,0.06)"}},y:{title:{display:true,text:`ARPPU $ (中位数 $${medARPPU.toFixed(2)})`,color:"#64748b"},ticks:{color:"#64748b",callback:v=>"$"+v},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+
+  // Draw quadrant labels on canvas after render
+  const qCanvas=document.getElementById("quadrantChart");
+  const qCtx=qCanvas.getContext("2d");
+  const qArea=charts.qd.chartArea;
+  if(qArea){
+    const cx=(qArea.left+qArea.right)/2,cy=(qArea.top+qArea.bottom)/2;
+    qCtx.font="11px Arial";qCtx.globalAlpha=0.25;
+    qCtx.fillStyle="#10b981";qCtx.fillText("优质型",qArea.right-50,qArea.top+16);
+    qCtx.fillStyle="#3b82f6";qCtx.fillText("大众型",qArea.right-50,qArea.bottom-8);
+    qCtx.fillStyle="#f59e0b";qCtx.fillText("鲸鱼依赖型",qArea.left+4,qArea.top+16);
+    qCtx.fillStyle="#64748b";qCtx.fillText("低效型",qArea.left+4,qArea.bottom-8);
+    qCtx.globalAlpha=1;
+  }
+
+  // ══════ CLASSIFICATION TABLE ══════
+  const typeOrder=["优质型","大众型","鲸鱼依赖型","低效型"];
+  const typeDesc={"优质型":"付费率高 + ARPPU高，转化强且付费深度大，最理想","大众型":"付费率高 + ARPPU低，很多人小额送礼，收入分散稳定","鲸鱼依赖型":"付费率低 + ARPPU高，少数大哥撑场，收入集中脆弱","低效型":"付费率低 + ARPPU低，转化和付费深度都不足"};
+  const typeRisk={"优质型":"低","大众型":"低","鲸鱼依赖型":"高","低效型":"中"};
+  const typeAction={"优质型":"核心维护，保持资源倾斜","大众型":"提升客单价，引导高额打赏","鲸鱼依赖型":"拓展付费用户，降低大R依赖","低效型":"提升内容质量或调整运营策略"};
+
+  let st='<div class="chart-title">📋 主播变现类型分类</div>';
+  st+=`<div class="chart-sub" style="margin-bottom:12px">分界线: 付费率中位数 ${medPR.toFixed(2)}% · ARPPU中位数 $${medARPPU.toFixed(2)}</div>`;
+
+  // Summary cards
+  st+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">';
+  typeOrder.forEach(typ=>{
+    const members=D.filter(d=>d.streamerType===typ);
+    const rev=members.reduce((s,d)=>s+d.dCur,0);
+    st+=`<div style="padding:10px 12px;border-radius:8px;background:${typeBgs[typ]};border:1px solid ${typeColors[typ]}22"><div style="font-size:11px;color:${typeColors[typ]};font-weight:600">${typ}</div><div class="mono" style="font-size:20px;font-weight:700;color:${typeColors[typ]};margin:4px 0">${members.length}</div><div style="font-size:10px;color:#94a3b8">日收入 ${fmt(rev)}</div></div>`;
+  });
+  st+='</div>';
+
+  // Detail table
+  st+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+  st+='<thead><tr style="border-bottom:1px solid rgba(148,163,184,0.12)">';
+  st+='<th style="text-align:left;padding:8px 6px;color:#64748b;font-size:11px">主播</th>';
+  st+='<th style="text-align:center;padding:8px 4px;color:#64748b;font-size:11px;width:36px">级</th>';
+  st+='<th style="text-align:center;padding:8px 4px;color:#64748b;font-size:11px;width:80px">类型</th>';
+  st+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:55px">付费率</th>';
+  st+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:65px">ARPPU</th>';
+  st+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:55px">ARPU</th>';
+  st+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:55px">日收入</th>';
+  st+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:50px">观众</th>';
+  st+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:45px">送礼</th>';
+  st+='<th style="text-align:left;padding:8px 6px;color:#64748b;font-size:11px;width:40px">风险</th>';
+  st+='</tr></thead><tbody>';
+
+  typeOrder.forEach(typ=>{
+    const members=D.filter(d=>d.streamerType===typ).sort((a,b)=>b.dCur-a.dCur);
+    if(!members.length)return;
+    // Group header
+    st+=`<tr><td colspan="10" style="padding:10px 6px 4px;font-weight:700;font-size:12px;color:${typeColors[typ]};border-bottom:1px solid ${typeColors[typ]}22">${typ} (${members.length}人) <span style="font-weight:400;font-size:11px;color:#64748b">— ${typeDesc[typ]}</span></td></tr>`;
+    members.forEach(d=>{
+      const t=TC[d.tier];
+      const riskC=typeRisk[typ]==="高"?"#b45558":typeRisk[typ]==="中"?"#a8884d":"#5a9b75";
+      st+=`<tr style="border-bottom:1px solid rgba(148,163,184,0.04)">`;
+      st+=`<td style="padding:6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px">${d.name}</td>`;
+      st+=`<td style="text-align:center;padding:6px 4px"><span style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:${t.bg};color:${t.c}">${d.tier}${d.tierTrend}</span></td>`;
+      st+=`<td style="text-align:center;padding:6px 4px"><span style="padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:${typeBgs[typ]};color:${typeColors[typ]}">${typ}</span></td>`;
+      st+=`<td class="mono" style="text-align:right;padding:6px 4px">${d.payRate}%</td>`;
+      st+=`<td class="mono" style="text-align:right;padding:6px 4px">$${d.arppu}</td>`;
+      st+=`<td class="mono" style="text-align:right;padding:6px 4px">$${d.arpu}</td>`;
+      st+=`<td class="mono" style="text-align:right;padding:6px 4px;font-weight:600">${fmt(d.dCur)}</td>`;
+      st+=`<td class="mono" style="text-align:right;padding:6px 4px">${fmtN(d.vCur)}</td>`;
+      st+=`<td class="mono" style="text-align:right;padding:6px 4px">${d.gCur}</td>`;
+      st+=`<td style="padding:6px;color:${riskC};font-weight:600;font-size:11px">${typeRisk[typ]}</td>`;
+      st+=`</tr>`;
+    });
+  });
+  st+='</tbody></table></div>';
+
+  // Action recommendations
+  st+='<div style="margin-top:14px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px">';
+  typeOrder.forEach(typ=>{
+    const n=D.filter(d=>d.streamerType===typ).length;
+    if(!n)return;
+    st+=`<div style="padding:10px 14px;border-radius:8px;background:rgba(148,163,184,0.03);border:1px solid rgba(148,163,184,0.06)"><div style="font-size:12px;font-weight:600;color:${typeColors[typ]};margin-bottom:4px">${typ} · 运营建议</div><div style="font-size:11px;color:#94a3b8">${typeAction[typ]}</div></div>`;
+  });
+  st+='</div>';
+
+  document.getElementById("streamerTypeCard").innerHTML=st;
+}
+
+// ══════ ANALYSIS ══════
+function renderAnalysis(){
+  const ct={S:0,A:0,B:0,C:0};D.forEach(d=>ct[d.tier]++);
+  const total=D.reduce((s,d)=>s+d.wCur,0);
+  let h='<div class="chart-title">主播层级分布</div><div class="chart-sub">综合评分: 收入30% · 稳定20% · 勤奋20% · 观众15% · 持续15%</div><div style="margin-top:4px;font-size:10px;color:#475569">S≥75分 · A≥50分 · B≥25分 · C<25分 · 箭头=本周趋势</div><div style="margin-top:12px">';
+  for(const[t,cfg]of Object.entries(TC)){
+    const members=D.filter(d=>d.tier===t);
+    const n=members.length,p=(n/D.length*100).toFixed(0),rev=members.reduce((s,d)=>s+d.wCur,0);
+    const avgScore=n>0?(members.reduce((s,d)=>s+d.tierScore,0)/n).toFixed(0):0;
+    h+=`<div class="tier-row"><div class="tier-icon" style="background:${cfg.bg};border:1px solid ${cfg.c}33;color:${cfg.c}">${t}</div><div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:13px;font-weight:600">${cfg.l} <span style="font-size:11px;color:#64748b;font-weight:400">均分${avgScore}</span></span><span class="mono" style="font-size:12px;color:#94a3b8">${n}人 · ${fmt(rev)}</span></div><div class="progress-bar"><div class="progress-fill" style="width:${p}%;background:linear-gradient(90deg,${cfg.c},${cfg.c}88)"></div></div></div></div>`;
+  }
+  h+='</div>';document.getElementById("tierCard").innerHTML=h;
+
+  const sorted=[...D].sort((a,b)=>b.wCur-a.wCur);
+  const t5=sorted.slice(0,5).reduce((s,d)=>s+d.wCur,0),t10=sorted.slice(0,10).reduce((s,d)=>s+d.wCur,0),t20=sorted.slice(0,20).reduce((s,d)=>s+d.wCur,0);
+  const items=[{l:"Top 5",v:t5,p:total?(t5/total*100).toFixed(1):0,c:"#f59e0b"},{l:"Top 10",v:t10,p:total?(t10/total*100).toFixed(1):0,c:"#8b5cf6"},{l:"Top 20",v:t20,p:total?(t20/total*100).toFixed(1):0,c:"#3b82f6"},{l:"Top 50",v:total,p:"100",c:"#10b981"}];
+  let ch='<div class="chart-title">收入集中度分析</div><div style="margin-top:16px">';
+  items.forEach(it=>{ch+=`<div class="conc-item"><div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px"><span style="font-weight:600;color:${it.c}">${it.l}</span><span class="mono" style="color:#94a3b8;font-size:12px">${fmt(it.v)} (${it.p}%)</span></div><div class="conc-bar"><div class="conc-fill" style="width:${it.p}%;background:linear-gradient(90deg,${it.c},${it.c}66)"></div></div></div>`;});
+  ch+='</div>';document.getElementById("concCard").innerHTML=ch;
+
+  let al='<div class="chart-title">⚠️ 预警关注</div><div style="margin-top:12px">';
+  D.filter(d=>d.wCh<-20&&d.wPrev>0).sort((a,b)=>a.wCh-b.wCh).slice(0,5).forEach(d=>{al+=`<div class="alert-item alert-danger"><div><div style="font-weight:600;font-size:13px">${d.name}</div><div style="font-size:11px;color:#64748b">${fmt(d.wPrev)} → ${fmt(d.wCur)} · ${d.country}</div></div><div class="mono" style="color:#ef4444;font-weight:700;font-size:15px">${d.wCh}%</div></div>`;});
+  D.filter(d=>d.wCh>30&&d.wCh<999).sort((a,b)=>b.wCh-a.wCh).slice(0,3).forEach(d=>{al+=`<div class="alert-item alert-success"><div><div style="font-weight:600;font-size:13px">${d.name}</div><div style="font-size:11px;color:#64748b">${fmt(d.wPrev)} → ${fmt(d.wCur)} · ${d.country}</div></div><div class="mono" style="color:#10b981;font-weight:700;font-size:15px">+${d.wCh}%</div></div>`;});
+  al+='</div>';document.getElementById("alertCard").innerHTML=al;
+
+  // ══════ WEEKLY SUMMARY ══════
+  const tagColors={red:"#b45558",orange:"#a8884d",purple:"#8b72a8",green:"#5a9b75",gray:"#707880"};
+  const tagBgs={red:"rgba(180,85,88,0.1)",orange:"rgba(168,136,77,0.1)",purple:"rgba(139,114,168,0.1)",green:"rgba(90,155,117,0.1)",gray:"rgba(112,120,128,0.1)"};
+  function tagSpan(tg){return`<span style="padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:${tagBgs[tg.c]};color:${tagColors[tg.c]};border:1px solid ${tagColors[tg.c]}22;cursor:help" title="${tg.tip||''}">${tg.t}</span>`;}
+
+  const wsActive=D.filter(d=>d.wCur>0);
+  const wsRising=D.filter(d=>d.wCh>0&&d.wCh<999);
+  const wsFalling=D.filter(d=>d.wCh<0&&d.wPrev>0);
+  const wsVacation=D.filter(d=>d.tags.some(t=>t.t==="本周停播"));
+  const wsSilent=D.filter(d=>d.tags.some(t=>t.t==="长期沉默"));
+  const wsGrowing=D.filter(d=>d.tags.some(t=>t.t==="持续增长"));
+  const wsComeback=D.filter(d=>d.tags.some(t=>t.t==="回归开播"));
+  const wsNewEntries=D.filter(d=>d.isNewEntry);
+  const wsDropped=D.filter(d=>d.isDropped);
+  const wsStable=D.filter(d=>d.tags.some(t=>t.t==="稳定高产"));
+  const wsConcentrated=D.filter(d=>d.tags.some(t=>t.t==="收入集中"||t.t==="靠单场"));
+  const wsConsecDown=D.filter(d=>d.tags.some(t=>t.t==="连续下滑"));
+  const wsWhaleRisk=D.filter(d=>d.tags.some(t=>t.t==="疑似大R流失"));
+
+  let ws='<div class="chart-title" style="font-size:16px">📋 本周观察总结 (W5: 02.16-02.22)</div>';
+  ws+='<div style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px">';
+  [{l:"活跃主播",v:wsActive.length,c:"#10b981",sub:`/${D.length}`},
+   {l:"收入上升",v:wsRising.length,c:"#10b981",sub:`avg +${wsRising.length?Math.round(wsRising.reduce((s,d)=>s+d.wCh,0)/wsRising.length):0}%`},
+   {l:"收入下降",v:wsFalling.length,c:"#ef4444",sub:`avg ${wsFalling.length?Math.round(wsFalling.reduce((s,d)=>s+d.wCh,0)/wsFalling.length):0}%`},
+   {l:"休假/停播",v:wsVacation.length+wsSilent.length,c:"#a855f7",sub:`${wsVacation.length}休假 ${wsSilent.length}沉默`},
+   {l:"新入围",v:wsNewEntries.length,c:"#06b6d4",sub:wsNewEntries.length?wsNewEntries.map(d=>d.name.slice(0,8)).join(", "):"\u2014"},
+   {l:"掉出Top50",v:wsDropped.length,c:"#f59e0b",sub:wsDropped.length?wsDropped.map(d=>d.name.slice(0,8)).join(", "):"\u2014"},
+  ].forEach(s=>{ws+=`<div style="padding:10px 12px;border-radius:8px;background:${s.c}0a;border:1px solid ${s.c}18"><div style="font-size:10px;color:#64748b">${s.l}</div><div class="mono" style="font-size:22px;font-weight:700;color:${s.c};margin:2px 0">${s.v}</div><div style="font-size:10px;color:#94a3b8">${s.sub}</div></div>`;});
+  ws+='</div>';
+
+  // ── Auto-generated narrative summary ──
+  ws+='<div style="margin-top:16px;padding:14px 16px;border-radius:8px;background:rgba(148,163,184,0.04);border:1px solid rgba(148,163,184,0.08)">';
+  ws+='<div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:10px">📝 关键观察</div>';
+  const wsObs=[];
+  const wsPrevTotal=D.reduce((s,d)=>s+d.wPrev,0),wsTotalCh=wsPrevTotal?((total-wsPrevTotal)/wsPrevTotal*100).toFixed(1):0;
+  wsObs.push({icon:"💰",text:`本周Top50总收入 <b>${fmt(total)}</b>，环比${wsTotalCh>0?'<span style="color:#10b981">+'+wsTotalCh+'%</span>':'<span style="color:#ef4444">'+wsTotalCh+'%</span>'}。${wsActive.length}人活跃，${D.length-wsActive.length}人零收入。`});
+
+  const wsTopR=[...wsRising].sort((a,b)=>b.wCh-a.wCh).slice(0,3);
+  if(wsTopR.length) wsObs.push({icon:"🚀",text:`涨幅最大：${wsTopR.map(d=>`<b>${d.name}</b>(+${d.wCh}%，${fmt(d.wPrev)}→${fmt(d.wCur)})`).join("、")}。`});
+
+  const wsTopF=[...wsFalling].sort((a,b)=>a.wCh-b.wCh).slice(0,3);
+  if(wsTopF.length) wsObs.push({icon:"📉",text:`跌幅最大：${wsTopF.map(d=>{const neg=d.tags.filter(t=>t.c!=="green");return`<b>${d.name}</b>(${d.wCh}%${neg.length?'，原因：'+neg.map(t=>t.t).join("+"):''})`;}).join("、")}。`});
+
+  if(wsVacation.length) wsObs.push({icon:"🏖",text:`本周停播：${wsVacation.map(d=>`<b>${d.name}</b>`).join("、")}。建议确认是否计划内休假。`});
+
+  if(wsConsecDown.length) wsObs.push({icon:"⚠️",text:`连续3周下滑：${wsConsecDown.map(d=>`<b>${d.name}</b>(${d.weekly.slice(2).map(v=>fmt(v)).join("→")})`).join("、")}。<span style="color:#b45558">需重点关注。</span>`});
+
+  if(wsWhaleRisk.length) wsObs.push({icon:"🐋",text:`疑似大R流失：${wsWhaleRisk.map(d=>`<b>${d.name}</b>(${d.wCh}%)`).join("、")}。各环节正常但收入骤降，可能核心大R减少打赏，建议结合Top3大R数据排查。`});
+
+  if(wsConcentrated.length) wsObs.push({icon:"🎯",text:`收入依赖单场：${wsConcentrated.map(d=>`<b>${d.name}</b>(单日最高占${d.dConc}%)`).join("、")}。收入稳定性差，一旦缺播影响大。`});
+
+  if(wsComeback.length) wsObs.push({icon:"🔄",text:`回归开播(上周零收入)：${wsComeback.map(d=>`<b>${d.name}</b>(W5 ${fmt(d.wCur)})`).join("、")}。`});
+
+  if(wsGrowing.length) wsObs.push({icon:"📈",text:`持续增长(≥3周连涨)：${wsGrowing.map(d=>`<b>${d.name}</b>`).join("、")}。表现稳定，可考虑加大运营支持。`});
+
+  if(wsStable.length) wsObs.push({icon:"💎",text:`稳定高产(S/A级+低波动)：${wsStable.map(d=>`<b>${d.name}</b>`).join("、")}。核心主播，需保持关系维护。`});
+
+  if(wsNewEntries.length) wsObs.push({icon:"🆕",text:`新入围Top50：${wsNewEntries.map(d=>`<b>${d.name}</b>(总收入${fmt(d.totalEarning)}，W5 ${fmt(d.wCur)})`).join("、")}。`});
+  if(wsDropped.length) wsObs.push({icon:"⬇️",text:`掉出Top50：${wsDropped.map(d=>`<b>${d.name}</b>`).join("、")}。数据仍保留在看板中，持续观察。`});
+
+  wsObs.forEach((o,i)=>{ws+=`<div style="font-size:12px;color:#cbd5e1;line-height:1.8;margin-bottom:6px;display:flex;gap:8px"><span style="flex-shrink:0">${o.icon}</span><span>${o.text}</span></div>`;});
+  ws+='</div>';
+
+  // ── Tag rules reference ──
+  ws+='<details style="margin-top:12px"><summary style="font-size:11px;color:#64748b;cursor:pointer">📐 标签判定规则说明（点击展开）</summary>';
+  ws+='<div style="margin-top:8px;padding:12px;border-radius:8px;background:rgba(148,163,184,0.03);font-size:11px;color:#94a3b8;line-height:2">';
+  ws+=`<div style="margin-bottom:8px;font-weight:700;color:#64748b">📊 全局基线（活跃主播中位数）：</div>`;
+  ws+=`开播天数: ${GL.activeDays}天 · 日均时长: ${GL.avgHours.toFixed(1)}h · 时均观众: ${GL.viewersPerHour}人 · 送礼率: ${GL.giftRate.toFixed(2)}% · 人均贡献: $${GL.revenuePerGifter.toFixed(2)}<br><br>`;
+  ws+='<div style="margin-bottom:4px;font-weight:700;color:#64748b">漏斗归因（周环比↓>10%时逐层检查）：</div>';
+  ws+='① 开播天数 → 本周停播(0天) / 开播过少(≤2天) / 开播减少(低于自身常规一半)<br>';
+  ws+='② 日均时长 → 时长不足(低于全局中位40%)<br>';
+  ws+='③ 时均观众 → 观众偏低(低于全局中位30%)<br>';
+  ws+='④ 送礼转化 → 转化率低(低于全局中位40%)<br>';
+  ws+='⑤ 人均贡献 → 人均偏低(低于全局中位40%)<br>';
+  ws+='⑥ 全部正常 → 疑似大R流失(跌幅>20%但漏斗各环节无异常)<br><br>';
+  ws+='<div style="margin-bottom:4px;font-weight:700;color:#64748b">附加标签：</div>';
+  ws+='连续下滑 = W3→W4→W5连续3周下降<br>收入集中 = 单日最高>60%<br>';
+  ws+='<div style="margin:8px 0 4px;font-weight:700;color:#64748b">正向标签：</div>';
+  ws+='回归开播 / 持续增长(≥3周连涨) / 本周爆发(+30%) / 稳定高产(S/A+CV<0.3)';
+  ws+='<div style="margin:8px 0 4px;font-weight:700;color:#64748b">预警标签（不论涨跌）：</div>';
+  ws+='低活跃(≤2天) / 长期沉默(≥3周零收入) / 靠单场(>70%来自单日)';
+  ws+='</div></details>';
+  document.getElementById("weeklySummaryCard").innerHTML=ws;
+
+  // ══════ DIAGNOSTIC TABLE ══════
+  const tagged=D.filter(d=>d.tags.length>0).sort((a,b)=>{
+    const aN=a.tags.filter(t=>t.c!=="green").length,bN=b.tags.filter(t=>t.c!=="green").length;
+    if(bN!==aN)return bN-aN;return a.wCh-b.wCh;
+  });
+  let dg='<div class="chart-title" style="font-size:15px">🩺 主播诊断一览</div>';
+  dg+='<div class="chart-sub" style="margin-bottom:12px">每人一行 · 标签+关键数据 · 悬停标签看判定依据</div>';
+  dg+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+  dg+='<thead><tr style="border-bottom:1px solid rgba(148,163,184,0.1)">';
+  dg+='<th style="text-align:left;padding:8px 6px;color:#64748b;font-size:11px;width:140px">主播</th>';
+  dg+='<th style="text-align:center;padding:8px 4px;color:#64748b;font-size:11px;width:32px">级</th>';
+  dg+='<th style="text-align:center;padding:8px 4px;color:#64748b;font-size:11px;width:35px">分</th>';
+  dg+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:65px">W5收入</th>';
+  dg+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:55px">周环比</th>';
+  dg+='<th style="text-align:center;padding:8px 4px;color:#64748b;font-size:11px;width:35px">天数</th>';
+  dg+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:45px">日均h</th>';
+  dg+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:55px">送礼率</th>';
+  dg+='<th style="text-align:right;padding:8px 4px;color:#64748b;font-size:11px;width:40px">CV</th>';
+  dg+='<th style="text-align:left;padding:8px 6px;color:#64748b;font-size:11px">诊断标签</th>';
+  dg+='</tr></thead><tbody>';
+  tagged.forEach(d=>{
+    const t=TC[d.tier];
+    const negTags=d.tags.filter(tg=>tg.c!=="green");
+    const posTags=d.tags.filter(tg=>tg.c==="green");
+    const chColor=d.wCh>0?"#5a9b75":d.wCh<0?"#b45558":"#707880";
+    const chText=d.wCh>=999?"NEW":d.wCh>0?`+${d.wCh}%`:`${d.wCh}%`;
+    const cvColor=d.stability>0.8?"#b45558":d.stability>0.5?"#a8884d":"#5a9b75";
+    dg+=`<tr style="border-bottom:1px solid rgba(148,163,184,0.05)">`;
+    dg+=`<td style="padding:7px 6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${d.name}</td>`;
+    dg+=`<td style="text-align:center;padding:7px 4px"><span style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:${t.bg};color:${t.c}" title="评分${d.tierScore}">${d.tier}${d.tierTrend}</span></td>`;
+    dg+=`<td class="mono" style="text-align:center;padding:7px 4px;font-size:11px;color:#94a3b8" title="收入${d.tierDetail.inc} 稳定${d.tierDetail.stab} 勤奋${d.tierDetail.dili} 观众${d.tierDetail.audi} 持续${d.tierDetail.sust}">${d.tierScore}</td>`;
+    dg+=`<td class="mono" style="text-align:right;padding:7px 4px;font-weight:600">${fmt(d.wCur)}</td>`;
+    dg+=`<td class="mono" style="text-align:right;padding:7px 4px;color:${chColor};font-weight:600">${chText}</td>`;
+    dg+=`<td class="mono" style="text-align:center;padding:7px 4px;color:${d.activeDays<=2?"#b45558":"#94a3b8"}">${d.activeDays}d</td>`;
+    dg+=`<td class="mono" style="text-align:right;padding:7px 4px;color:#94a3b8">${d.avgHoursPerDay}h</td>`;
+    dg+=`<td class="mono" style="text-align:right;padding:7px 4px;color:#94a3b8">${d.giftRate}%</td>`;
+    dg+=`<td class="mono" style="text-align:right;padding:7px 4px;color:${cvColor}">${d.stability}</td>`;
+    dg+=`<td style="padding:7px 6px"><div style="display:flex;gap:4px;flex-wrap:wrap">${negTags.map(tg=>tagSpan(tg)).join("")}${posTags.map(tg=>tagSpan(tg)).join("")}</div></td>`;
+    dg+=`</tr>`;
+  });
+  dg+='</tbody></table></div>';
+  document.getElementById("diagCard").innerHTML=dg;
+
+
+  const countryMap={};D.forEach(d=>{if(!countryMap[d.country])countryMap[d.country]={n:0,rev:0};countryMap[d.country].n++;countryMap[d.country].rev+=d.wCur;});
+  let chtml='<div class="chart-title">🌍 国家分布</div><div style="margin-top:12px">';
+  Object.entries(countryMap).sort((a,b)=>b[1].rev-a[1].rev).forEach(([c,v])=>{
+    const pct=total?(v.rev/total*100).toFixed(1):0;
+    chtml+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-weight:600;font-size:13px;width:120px">${c}</span><span class="mono" style="font-size:12px;color:#94a3b8;width:50px">${v.n}人</span><div style="flex:1"><div class="progress-bar"><div class="progress-fill" style="width:${pct*2}%;background:linear-gradient(90deg,#f59e0b,#f59e0b66)"></div></div></div><span class="mono" style="font-size:12px;color:#94a3b8;width:90px;text-align:right">${fmt(v.rev)} (${pct}%)</span></div>`;
+  });
+  chtml+='</div>';document.getElementById("countryCard").innerHTML=chtml;
+
+  const rdata=[...D].filter(d=>d.wPrev>0||d.wCur>0).map(d=>({name:d.name,change:(wPrevR[d.name]||50)-(wCurR[d.name]||50)})).sort((a,b)=>b.change-a.change).slice(0,15);
+  destroyC("rc");charts.rc=new Chart(document.getElementById("rankChart"),{type:"bar",data:{labels:rdata.map(d=>d.name),datasets:[{data:rdata.map(d=>d.change),backgroundColor:rdata.map(d=>d.change>0?"#10b981":d.change<0?"#ef4444":"#64748b"),borderRadius:4,barThickness:14}]},options:{indexAxis:"y",responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",callbacks:{label:c=>`排名变动: ${c.raw>0?"+":""}${c.raw}`}}},scales:{x:{ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}},y:{ticks:{color:"#94a3b8",font:{size:10}},grid:{display:false}}}}});
+
+  // ══════ WHALE DEPENDENCY ANALYSIS ══════
+  // Build user->streamers map
+  const userMap={};
+  D.forEach(d=>{
+    if(!d.top3users)return;
+    d.top3users.split(",").forEach(uid=>{
+      uid=uid.trim();if(!uid)return;
+      if(!userMap[uid])userMap[uid]={streamers:[],totalRev:0};
+      userMap[uid].streamers.push({name:d.name,wCur:d.wCur,tier:d.tier});
+      userMap[uid].totalRev+=d.wCur;
+    });
+  });
+
+  // Shared whales: users appearing in 2+ streamers' top3
+  const shared=Object.entries(userMap).filter(([_,v])=>v.streamers.length>=2).sort((a,b)=>b[1].streamers.length-a[1].streamers.length);
+  const allUsers=Object.keys(userMap);
+  const uniqueUsers=allUsers.length;
+
+  let wh='<div class="chart-title">🐋 大R重叠分析</div><div class="chart-sub">同一大R出现在多个主播Top3 = 该大R流失影响多人</div>';
+  wh+=`<div style="display:flex;gap:16px;margin:12px 0 16px"><div style="padding:10px 16px;background:rgba(245,158,11,0.08);border-radius:8px;border:1px solid rgba(245,158,11,0.15)"><div style="font-size:11px;color:#64748b">Top3大R总数(去重)</div><div class="mono" style="font-size:20px;font-weight:700;color:#f59e0b">${uniqueUsers}</div></div><div style="padding:10px 16px;background:rgba(239,68,68,0.08);border-radius:8px;border:1px solid rgba(239,68,68,0.15)"><div style="font-size:11px;color:#64748b">跨主播大R</div><div class="mono" style="font-size:20px;font-weight:700;color:#ef4444">${shared.length}</div></div></div>`;
+
+  if(shared.length>0){
+    wh+='<div style="max-height:360px;overflow-y:auto">';
+    shared.forEach(([uid,info])=>{
+      const risk=info.streamers.length>=3?"🔴 高风险":info.streamers.length>=2?"🟡 注意":"";
+      wh+=`<div style="padding:10px 12px;border-radius:8px;margin-bottom:8px;background:rgba(239,68,68,${info.streamers.length>=3?0.08:0.04});border:1px solid rgba(239,68,68,${info.streamers.length>=3?0.15:0.08})"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="mono" style="font-size:12px;font-weight:700;color:#f59e0b">${uid}</span><span style="font-size:11px">${risk} · 关联 ${info.streamers.length} 个主播</span></div><div style="display:flex;flex-wrap:wrap;gap:6px">`;
+      info.streamers.forEach(s=>{
+        const tc=TC[s.tier];
+        wh+=`<span style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;background:${tc.bg};color:${tc.c};border:1px solid ${tc.c}33">${s.name} (${fmt(s.wCur)})</span>`;
+      });
+      wh+='</div></div>';
+    });
+    wh+='</div>';
+  }else{
+    wh+='<div style="padding:20px;text-align:center;color:#64748b;font-size:13px">✅ 暂无跨主播重叠大R，集中度风险较低</div>';
+  }
+  document.getElementById("whaleOverlapCard").innerHTML=wh;
+
+  // Whale risk: streamers most dependent on shared whales
+  const depMap={};
+  D.forEach(d=>{
+    if(!d.top3users)return;
+    const uids=d.top3users.split(",").map(u=>u.trim()).filter(u=>u);
+    const sharedCount=uids.filter(u=>userMap[u]&&userMap[u].streamers.length>=2).length;
+    depMap[d.name]={total:uids.length,shared:sharedCount,pct:uids.length>0?Math.round(sharedCount/uids.length*100):0,wCur:d.wCur,tier:d.tier};
+  });
+  const depList=Object.entries(depMap).filter(([_,v])=>v.shared>0).sort((a,b)=>b[1].pct-a[1].pct||b[1].wCur-a[1].wCur);
+
+  let rh='<div class="chart-title">⚠️ 大R依赖风险</div><div class="chart-sub">主播的Top3大R中有多少是跨主播共享的 · 比例越高风险越大</div>';
+  if(depList.length>0){
+    rh+='<div style="max-height:360px;overflow-y:auto">';
+    depList.forEach(([name,info])=>{
+      const tc=TC[info.tier];
+      const barC=info.pct>=67?"#ef4444":info.pct>=34?"#f59e0b":"#3b82f6";
+      rh+=`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;font-size:13px">${name}</span><span style="padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:${tc.bg};color:${tc.c}">${info.tier}</span></div><span class="mono" style="font-size:12px;color:#94a3b8">${info.shared}/${info.total} 共享 · ${fmt(info.wCur)}/W</span></div><div class="progress-bar" style="height:8px"><div class="progress-fill" style="width:${info.pct}%;background:linear-gradient(90deg,${barC},${barC}88)"></div></div><div style="font-size:10px;color:${barC};margin-top:2px;font-weight:600">${info.pct}% 大R被其他主播共享${info.pct>=67?" · 该主播大R一旦流失可能影响多人":""}</div></div>`;
+    });
+    rh+='</div>';
+  }else{
+    rh+='<div style="padding:20px;text-align:center;color:#64748b;font-size:13px">✅ 暂无共享大R依赖风险</div>';
+  }
+  document.getElementById("whaleRiskCard").innerHTML=rh;
+}
+
+// ══════ EVENTS ══════
+document.querySelectorAll(".nav-btn").forEach(b=>{b.addEventListener("click",()=>{
+  document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");
+  tab=b.dataset.tab;document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.getElementById("tab-"+tab).classList.add("active");
+  if(tab==="trend")renderTrendTab();
+  if(tab==="viewers")renderViewerTab();
+  if(tab==="analysis")renderAnalysis();
+});});
+document.getElementById("tierGroup").addEventListener("click",e=>{if(e.target.dataset.tier!==undefined){tierF=e.target.dataset.tier;renderTiers();renderTable();}});
+document.getElementById("searchInput").addEventListener("input",e=>{search=e.target.value;renderTable();});
+document.getElementById("tableHead").addEventListener("click",e=>{const th=e.target.closest("th");if(!th||!th.dataset.sort||!th.classList.contains("sortable"))return;const k=th.dataset.sort;if(sortKey===k)sortD=sortD==="desc"?"asc":"desc";else{sortKey=k;sortD="desc";}renderTable();});
+document.getElementById("tableBody").addEventListener("click",e=>{const btn=e.target.closest(".compare-btn");if(!btn)return;const n=btn.dataset.cmp;if(compared.has(n))compared.delete(n);else if(compared.size<7)compared.add(n);updateCmp();renderTable();});
+document.getElementById("clearCompare").addEventListener("click",()=>{compared.clear();updateCmp();renderTable();});
+function updateCmp(){document.getElementById("compareCount").textContent=compared.size;document.getElementById("clearCompare").style.display=compared.size>0?"block":"none";}
+
+renderStats();renderTiers();renderTable();
+</script>
+</body>
+</html>

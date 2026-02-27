@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Clapper 大R用户 Top50 监控看板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:linear-gradient(135deg,#0a0d1a 0%,#0f1629 50%,#0c1220 100%);color:#e2e8f0;min-height:100vh;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.15);border-radius:3px}
+.header{background:linear-gradient(90deg,rgba(234,179,8,0.06),rgba(239,68,68,0.06),rgba(168,85,247,0.06));border-bottom:1px solid rgba(148,163,184,0.08);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
+.header-left{display:flex;align-items:center;gap:14px}
+.logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#eab308,#ef4444);display:flex;align-items:center;justify-content:center;font-size:20px}
+.header-title{font-size:18px;font-weight:700;letter-spacing:-0.02em}
+.header-sub{font-size:11px;color:#64748b;margin-top:1px}
+.nav{display:flex;gap:4px;background:rgba(15,23,42,0.5);border-radius:10px;padding:3px}
+.nav-btn{padding:7px 16px;border-radius:8px;border:none;background:transparent;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit}
+.nav-btn.active{background:rgba(234,179,8,0.15);color:#eab308}.nav-btn:hover{color:#94a3b8}
+.stats-grid{padding:16px 28px;display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+@media(max-width:960px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:rgba(30,41,59,0.5);border:1px solid rgba(148,163,184,0.08);border-radius:12px;padding:14px 16px;animation:fadeIn 0.4s ease forwards;opacity:0}
+.stat-label{font-size:11px;color:#64748b;display:flex;justify-content:space-between;align-items:center}
+.stat-value{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:6px}
+.stat-sub{font-size:12px;font-weight:600;margin-top:2px}
+.filters{padding:0 28px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tier-group{display:flex;gap:3px;background:rgba(30,41,59,0.5);border-radius:10px;padding:3px}
+.tier-btn{padding:5px 14px;border-radius:8px;border:none;background:transparent;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.search-input{background:rgba(30,41,59,0.5);border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:7px 14px;color:#e2e8f0;font-size:13px;width:220px;outline:none;font-family:inherit}
+.search-input:focus{border-color:rgba(234,179,8,0.4)}.search-input::placeholder{color:#475569}
+.clear-btn{padding:6px 14px;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#ef4444;font-size:12px;cursor:pointer;font-weight:600;font-family:inherit}
+.content{padding:0 28px 32px}
+.table-wrap{background:rgba(30,41,59,0.35);border:1px solid rgba(148,163,184,0.06);border-radius:14px;overflow:hidden}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:1700px}
+thead tr{background:rgba(15,23,42,0.6)}
+th{padding:6px 10px;color:#64748b;font-weight:600;font-size:10px;letter-spacing:0.04em;white-space:nowrap;border-bottom:1px solid rgba(148,163,184,0.06);user-select:none;text-align:center}
+th.group-header{font-size:11px;color:#94a3b8;font-weight:700;border-bottom:1px solid rgba(148,163,184,0.1);padding:8px 10px}
+th.sortable{cursor:pointer}th.sortable:hover{color:#94a3b8}th.sorted{color:#eab308 !important}
+td{padding:8px 10px;border-bottom:1px solid rgba(148,163,184,0.04)}
+tbody tr{transition:background 0.15s}tbody tr:hover{background:rgba(148,163,184,0.04)}tbody tr.compared{background:rgba(234,179,8,0.06)}
+.col-daily{background:rgba(234,179,8,0.02)}.col-weekly{background:rgba(168,85,247,0.02)}
+.mono{font-family:'JetBrains Mono',monospace}
+.change-pos{color:#10b981}.change-neg{color:#ef4444}.change-neu{color:#64748b}
+.compare-btn{width:26px;height:26px;border-radius:6px;border:none;background:rgba(148,163,184,0.08);color:#64748b;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+.compare-btn.active{background:rgba(234,179,8,0.2);color:#eab308}
+.risk-badge{padding:3px 10px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:0.03em}
+.risk-high{background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.25)}
+.risk-mid{background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.2)}
+.risk-low{background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2)}
+.tier-badge{padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}
+.chart-card{background:rgba(30,41,59,0.35);border:1px solid rgba(148,163,184,0.06);border-radius:14px;padding:20px;margin-bottom:16px}
+.chart-title{font-size:15px;font-weight:700;margin-bottom:4px}
+.chart-sub{font-size:11px;color:#64748b;margin-bottom:16px}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:960px){.chart-row{grid-template-columns:1fr}}
+.alert-card{padding:12px 16px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;gap:14px}
+.alert-critical{background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.12)}
+.alert-warning{background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.1)}
+.alert-dormant{background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.1)}
+.alert-link{background:rgba(6,182,212,0.06);border:1px solid rgba(6,182,212,0.1)}
+.alert-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.progress-bar{height:6px;background:rgba(148,163,184,0.08);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px}
+.tab-content{display:none}.tab-content.active{display:block;animation:fadeIn 0.3s ease}
+.footer{text-align:center;padding:20px 28px 28px;color:#334155;font-size:11px;border-top:1px solid rgba(148,163,184,0.04)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-left">
+    <div class="logo">💎</div>
+    <div>
+      <div class="header-title">Clapper 大R用户 Top50 监控看板</div>
+      <div class="header-sub">Whale User Dashboard · 周期: 2026.01.19–02.22 · 日明细: 02.09–02.15</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <button class="nav-btn active" data-tab="ranking">📊 排名</button>
+    <button class="nav-btn" data-tab="trend">📈 趋势</button>
+    <button class="nav-btn" data-tab="behavior">🎯 行为</button>
+    <button class="nav-btn" data-tab="alert">🚨 预警</button>
+    <button class="nav-btn" data-tab="health">🩺 健康</button>
+  </nav>
+</header>
+<div class="stats-grid" id="statsGrid"></div>
+<div style="height:14px"></div>
+<div class="filters">
+  <div class="tier-group" id="tierGroup"></div>
+  <div style="flex:1"></div>
+  <input class="search-input" id="searchInput" placeholder="🔍 搜索用户名..."/>
+  <button class="clear-btn" id="clearCompare" style="display:none">清除对比 (<span id="compareCount">0</span>)</button>
+</div>
+<div class="content">
+  <div class="tab-content active" id="tab-ranking"><div class="table-wrap"><div class="table-scroll"><table><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table></div></div></div>
+  <div class="tab-content" id="tab-trend">
+    <div class="chart-card"><div class="chart-title">周充值趋势对比</div><div class="chart-sub" id="weekSub"></div><canvas id="weekChart" height="160"></canvas></div>
+    <div class="chart-card"><div class="chart-title">日充值趋势对比 (02.09-02.15)</div><div class="chart-sub" id="daySub"></div><canvas id="dayChart" height="160"></canvas></div>
+    <div class="chart-card"><div class="chart-title">👁 每日观看主播数趋势</div><div class="chart-sub" id="watchSub">观看主播数下降=兴趣收窄=流失前兆</div><canvas id="watchChart" height="160"></canvas></div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-title">Top 20 充值分布</div><div class="chart-sub">W5 vs W4</div><canvas id="topBar" height="180"></canvas></div>
+      <div class="chart-card"><div class="chart-title">🏆 全部50大R充值总览</div><div class="chart-sub">按W5降序</div><canvas id="allBar" height="180"></canvas></div>
+    </div>
+  </div>
+  <div class="tab-content" id="tab-behavior">
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-title">🎯 充值天数 vs 周充值额</div><div class="chart-sub">气泡=送礼主播数(越大越分散) · 充值天数少但金额高=高波动风险</div><canvas id="actScatter" height="200"></canvas></div>
+      <div class="chart-card"><div class="chart-title">👁 观看主播数变化趋势</div><div class="chart-sub" id="watchDetailSub">观看从多变少=兴趣收窄</div><canvas id="watchDetail" height="200"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-title">💝 送礼集中度分布</div><div class="chart-sub">按送礼主播数分组 · 仅送1-2个主播=高依赖风险</div><canvas id="concPie" height="200"></canvas></div>
+      <div class="chart-card"><div class="chart-title">⏰ 充值频次 (近7天)</div><div class="chart-sub">前半周 vs 后半周充值天数 · 频次下降先于金额下降</div><canvas id="freqChart" height="200"></canvas></div>
+    </div>
+    <div class="chart-card"><div class="chart-title">🔗 大R-主播联动分析</div><div class="chart-sub">大R的Top3常送主播在主播Top50中的匹配 · 可追踪主播状态</div><div id="linkageCard" style="margin-top:8px"></div></div>
+  </div>
+  <div class="tab-content" id="tab-alert">
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-title">🚨 风险等级分布</div><canvas id="riskPie" height="180"></canvas></div>
+      <div class="chart-card"><div class="chart-title">📊 风险评分 Top 20</div><div class="chart-sub">评分越高流失风险越大(满分100)</div><canvas id="riskBar" height="180"></canvas></div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card" id="criticalAlerts"></div>
+      <div class="chart-card" id="warningAlerts"></div>
+    </div>
+    <div class="chart-card" id="dormantAlerts"></div>
+  </div>
+  <div class="tab-content" id="tab-health">
+    <div class="chart-row" id="healthSummaryCards"></div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-title">🩺 大R行为分型分布</div><div class="chart-sub">基于充值节奏与消费模式自动分型</div><canvas id="typeDistChart" height="200"></canvas></div>
+      <div class="chart-card"><div class="chart-title">💊 健康状态分布</div><div class="chart-sub">基于分型的个性化健康评估</div><canvas id="healthDistChart" height="200"></canvas></div>
+    </div>
+    <div class="chart-card" id="healthDetailCard"></div>
+  </div>
+</div>
+<footer class="footer">Clapper Whale User Monitoring · 内部数据看板 · 2026 · 数据更新: 2026-02-25</footer>
+<script>
+const RAW=[{"pos": 1, "id": 6833927, "name": "OYK_Please_Stevie", "created": "2023-03-28", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-23 05:12", "total": 388188.3, "rechargeDays7": 1, "weekly": [3663.15, 1077.44, 4492.88, 236.99, 6410.73], "daily": [0.0, 0.0, 236.99, 0.0, 0.0, 0.0, 0.0], "watchS": [1, 1, 3, 7, 1, 3, 4], "giftCnt": 5, "top3raw": "u_8110875,5406624,9454334", "top3": [{"id": "8110875", "name": "", "inTop50": false}, {"id": "5406624", "name": "YourDreamGirlll", "inTop50": true}, {"id": "9454334", "name": "", "inTop50": false}]}, {"pos": 2, "id": 4540261, "name": "Sniper10", "created": "2022-01-15", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 07:21", "total": 376756.26, "rechargeDays7": 3, "weekly": [5929.2, 0.0, 3347.38, 3391.72, 2381.32], "daily": [1801.84, 794.94, 794.94, 0.0, 0.0, 0.0, 0.0], "watchS": [105, 60, 83, 15, 0, 0, 0], "giftCnt": 160, "top3raw": "u_9749111,29460058,25080265", "top3": [{"id": "9749111", "name": "", "inTop50": false}, {"id": "29460058", "name": "", "inTop50": false}, {"id": "25080265", "name": "", "inTop50": false}]}, {"pos": 3, "id": 2409517, "name": "Myalansky01akaTJ", "created": "2021-04-27", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-21 23:09", "total": 265021.33, "rechargeDays7": 1, "weekly": [54.42, 19.99, 564.33, 54.42, 544.34], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 54.42, 0.0], "watchS": [0, 0, 0, 0, 8, 53, 28], "giftCnt": 18, "top3raw": "u_8476197,8679796,11729675", "top3": [{"id": "8476197", "name": "", "inTop50": false}, {"id": "8679796", "name": "", "inTop50": false}, {"id": "11729675", "name": "", "inTop50": false}]}, {"pos": 4, "id": 25313418, "name": "3xWrldChmp", "created": "2025-09-19", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 00:11", "total": 206796.66, "rechargeDays7": 7, "weekly": [17749.29, 10999.56, 19499.22, 13749.45, 11349.54], "daily": [2999.88, 1499.94, 2499.9, 2999.88, 1749.93, 749.97, 1249.95], "watchS": [9, 8, 5, 6, 4, 3, 41], "giftCnt": 22, "top3raw": "u_10865431,11411949,24533966", "top3": [{"id": "10865431", "name": "", "inTop50": false}, {"id": "11411949", "name": "", "inTop50": false}, {"id": "24533966", "name": "", "inTop50": false}]}, {"pos": 5, "id": 11287191, "name": "Daddy111", "created": "2024-08-23", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-10 03:18", "total": 176468.52, "rechargeDays7": 2, "weekly": [0.0, 0.0, 2188.21, 2241.61, 0.0], "daily": [800.58, 1441.03, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [1, 1, 0, 0, 0, 0, 0], "giftCnt": 1, "top3raw": "u_10262016", "top3": [{"id": "10262016", "name": "Ina21271786", "inTop50": true}]}, {"pos": 6, "id": 5745328, "name": "The_Madhatter", "created": "2022-12-20", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-01-31 08:42", "total": 169964.18, "rechargeDays7": 0, "weekly": [296.81, 31.94, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [1, 1, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_7351452,12339767,27316903", "top3": [{"id": "7351452", "name": "", "inTop50": false}, {"id": "12339767", "name": "", "inTop50": false}, {"id": "27316903", "name": "", "inTop50": false}]}, {"pos": 7, "id": 22949530, "name": "HTXBrian", "created": "2025-05-29", "lastActive": "2025-07-09", "culture": "en", "country": "United States", "lastRecharge": "2025-07-03 02:06", "total": 165221.3, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 8, "id": 3922533, "name": "Mr_Unicorn_Takes_Control", "created": "2021-11-05", "lastActive": "2026-02-21", "culture": "en", "country": "United States", "lastRecharge": "2026-02-21 05:55", "total": 147917.23, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 369.97], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_7351452,7221655,30078067", "top3": [{"id": "7351452", "name": "", "inTop50": false}, {"id": "7221655", "name": "", "inTop50": false}, {"id": "30078067", "name": "", "inTop50": false}]}, {"pos": 9, "id": 9076476, "name": "B4eueuoie", "created": "2023-12-09", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 03:38", "total": 142863.56, "rechargeDays7": 5, "weekly": [254.85, 3956.61, 1668.69, 999.36, 1417.59], "daily": [230.51, 350.55, 26.53, 0.0, 365.55, 26.22, 0.0], "watchS": [9, 1, 1, 1, 1, 3, 13], "giftCnt": 3, "top3raw": "u_12328564,19438760,24533966", "top3": [{"id": "12328564", "name": "naughtynicole", "inTop50": true}, {"id": "19438760", "name": "", "inTop50": false}, {"id": "24533966", "name": "", "inTop50": false}]}, {"pos": 10, "id": 16194422, "name": "black_73", "created": "2025-01-16", "lastActive": "2026-02-01", "culture": "es", "country": "United States", "lastRecharge": "2026-01-28 20:54", "total": 140365.1, "rechargeDays7": 0, "weekly": [2379.82, 799.9, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_29341668,15233903,15142005", "top3": [{"id": "29341668", "name": "", "inTop50": false}, {"id": "15233903", "name": "", "inTop50": false}, {"id": "15142005", "name": "", "inTop50": false}]}, {"pos": 11, "id": 12254044, "name": "Snozzie", "created": "2024-11-05", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 06:54", "total": 136579.88, "rechargeDays7": 4, "weekly": [865.91, 2164.81, 1643.65, 2619.39, 920.06], "daily": [779.31, 0.0, 0.0, 0.0, 270.61, 757.68, 811.79], "watchS": [1, 1, 0, 0, 0, 1, 0], "giftCnt": 2, "top3raw": "u_20358086,12328564,8752517", "top3": [{"id": "20358086", "name": "Hellokatie98", "inTop50": true}, {"id": "12328564", "name": "naughtynicole", "inTop50": true}, {"id": "8752517", "name": "", "inTop50": false}]}, {"pos": 12, "id": 5573316, "name": "Timberland_Booties", "created": "2022-11-19", "lastActive": "2026-02-17", "culture": "en", "country": "United States", "lastRecharge": "2026-01-20 10:39", "total": 135568.29, "rechargeDays7": 0, "weekly": [52.98, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 13, "id": 5138489, "name": ".l.Batman", "created": "2022-07-26", "lastActive": "2026-02-24", "culture": "es", "country": "United States", "lastRecharge": "2026-02-24 03:39", "total": 132207.47, "rechargeDays7": 3, "weekly": [799.92, 499.95, 1049.91, 2049.84, 0.0], "daily": [0.0, 0.0, 0.0, 99.99, 299.97, 1649.88, 0.0], "watchS": [1, 14, 2, 24, 3, 3, 0], "giftCnt": 16, "top3raw": "u_16565127,28066130,19891350", "top3": [{"id": "16565127", "name": "", "inTop50": false}, {"id": "28066130", "name": "", "inTop50": false}, {"id": "19891350", "name": "", "inTop50": false}]}, {"pos": 14, "id": 22529949, "name": "tbabs1652_removed_2025-10-06T10:36:54Z", "created": "2025-05-12", "lastActive": "2025-10-06", "culture": "en", "country": "United States", "lastRecharge": "2025-10-06 03:40", "total": 129354.77, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 15, "id": 5237877, "name": "Pandabear69", "created": "2022-08-13", "lastActive": "2025-10-26", "culture": "en", "country": "United States", "lastRecharge": "2025-10-24 01:25", "total": 128884.03, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 16, "id": 5067738, "name": "DaddyJo3_", "created": "2022-07-02", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 01:43", "total": 128338.1, "rechargeDays7": 7, "weekly": [2230.09, 1378.05, 1460.36, 1357.11, 354.86], "daily": [207.02, 135.55, 78.32, 10.29, 5.3, 649.54, 271.09], "watchS": [1, 4, 4, 1, 1, 3, 3], "giftCnt": 18, "top3raw": "u_24507514,5849532,10965450", "top3": [{"id": "24507514", "name": "", "inTop50": false}, {"id": "5849532", "name": "ASHLEY_DN", "inTop50": true}, {"id": "10965450", "name": "", "inTop50": false}]}, {"pos": 17, "id": 21818583, "name": "JimVargo", "created": "2025-04-18", "lastActive": "2026-02-14", "culture": "en", "country": "United States", "lastRecharge": "2025-10-17 02:58", "total": 124886.73, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 13, 0, 0, 104, 0], "giftCnt": 2, "top3raw": "u_13462102,19524935,25143450", "top3": [{"id": "13462102", "name": "", "inTop50": false}, {"id": "19524935", "name": "", "inTop50": false}, {"id": "25143450", "name": "", "inTop50": false}]}, {"pos": 18, "id": 10450769, "name": "JayMart", "created": "2024-05-25", "lastActive": "2026-02-21", "culture": "en", "country": "United States", "lastRecharge": "2026-02-06 13:39", "total": 117034.97, "rechargeDays7": 0, "weekly": [269.98, 249.99, 749.97, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_8752517,6088998,19919861", "top3": [{"id": "8752517", "name": "", "inTop50": false}, {"id": "6088998", "name": "", "inTop50": false}, {"id": "19919861", "name": "", "inTop50": false}]}, {"pos": 19, "id": 5471126, "name": "Carter75955000", "created": "2022-10-18", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-24 06:46", "total": 110712.75, "rechargeDays7": 2, "weekly": [824.04, 910.8, 200.83, 195.9, 164.16], "daily": [127.08, 0.0, 68.82, 0.0, 0.0, 0.0, 0.0], "watchS": [60, 1, 117, 41, 196, 194, 0], "giftCnt": 49, "top3raw": "u_9281141,7971759,30167697", "top3": [{"id": "9281141", "name": "", "inTop50": false}, {"id": "7971759", "name": "", "inTop50": false}, {"id": "30167697", "name": "", "inTop50": false}]}, {"pos": 20, "id": 24117274, "name": "TwiggysRock", "created": "2025-07-30", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 05:30", "total": 113791.42, "rechargeDays7": 7, "weekly": [9145.32, 7800.42, 9145.32, 9683.28, 9414.3], "daily": [806.94, 1613.88, 2420.82, 1075.92, 806.94, 1075.92, 1882.86], "watchS": [1, 1, 1, 1, 1, 1, 1], "giftCnt": 1, "top3raw": "u_21771002", "top3": [{"id": "21771002", "name": "Twiggy_b00bies", "inTop50": true}]}, {"pos": 21, "id": 11665477, "name": "EJ...VEGAS", "created": "2024-09-28", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-24 11:07", "total": 109478.92, "rechargeDays7": 1, "weekly": [749.97, 799.96, 499.96, 249.99, 1499.94], "daily": [249.99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [1, 0, 11, 5, 1, 2, 0], "giftCnt": 5, "top3raw": "u_8332297,24155498,23563932", "top3": [{"id": "8332297", "name": "", "inTop50": false}, {"id": "24155498", "name": "", "inTop50": false}, {"id": "23563932", "name": "", "inTop50": false}]}, {"pos": 22, "id": 4191809, "name": "Morganwas1", "created": "2021-12-02", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-24 07:11", "total": 108844.85, "rechargeDays7": 6, "weekly": [2749.89, 2749.89, 2749.89, 2999.88, 3999.84], "daily": [249.99, 0.0, 499.98, 249.99, 499.98, 749.97, 749.97], "watchS": [1, 2, 48, 1, 1, 125, 95], "giftCnt": 11, "top3raw": "u_12328564,13868593,21771002", "top3": [{"id": "12328564", "name": "naughtynicole", "inTop50": true}, {"id": "13868593", "name": "", "inTop50": false}, {"id": "21771002", "name": "Twiggy_b00bies", "inTop50": true}]}, {"pos": 23, "id": 8534821, "name": ".kuato", "created": "2023-09-05", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-23 15:26", "total": 108570.32, "rechargeDays7": 3, "weekly": [1737.23, 938.26, 160.84, 525.38, 602.19], "daily": [0.0, 53.61, 160.84, 310.93, 0.0, 0.0, 0.0], "watchS": [13, 335, 253, 137, 114, 62, 307], "giftCnt": 15, "top3raw": "u_9454334,4915666,21138890", "top3": [{"id": "9454334", "name": "", "inTop50": false}, {"id": "4915666", "name": "", "inTop50": false}, {"id": "21138890", "name": "ByaByanca", "inTop50": true}]}, {"pos": 24, "id": 23072733, "name": "_SALVA_", "created": "2025-06-03", "lastActive": "2026-02-24", "culture": "es", "country": "United States", "lastRecharge": "2026-02-21 21:19", "total": 106182.51, "rechargeDays7": 4, "weekly": [1284.81, 705.46, 1719.04, 1533.57, 1134.18], "daily": [359.91, 0.0, 111.22, 0.0, 0.0, 531.22, 531.22], "watchS": [22, 17, 89, 31, 32, 25, 30], "giftCnt": 26, "top3raw": "u_21692881,23711516,23673211", "top3": [{"id": "21692881", "name": "", "inTop50": false}, {"id": "23711516", "name": "", "inTop50": false}, {"id": "23673211", "name": "", "inTop50": false}]}, {"pos": 25, "id": 3843257, "name": "TNB718_removed_2025-02-08T01:51:24Z", "created": "2021-10-26", "lastActive": "2025-02-08", "culture": "en", "country": "United States", "lastRecharge": "2024-10-04 09:36", "total": 102250.71, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 26, "id": 5008185, "name": "Hambone103", "created": "2022-06-13", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-24 17:44", "total": 100897.08, "rechargeDays7": 1, "weekly": [0.0, 0.0, 212.46, 53.11, 159.34], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 53.11], "watchS": [0, 0, 0, 0, 0, 1, 0], "giftCnt": 1, "top3raw": "u_22891374,7299265,10492052", "top3": [{"id": "22891374", "name": "", "inTop50": false}, {"id": "7299265", "name": "", "inTop50": false}, {"id": "10492052", "name": "", "inTop50": false}]}, {"pos": 27, "id": 5092837, "name": "Charles98661238", "created": "2022-07-11", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 00:06", "total": 99497.28, "rechargeDays7": 7, "weekly": [451.11, 461.68, 281.19, 387.42, 329.11], "daily": [26.53, 47.76, 42.46, 116.77, 47.73, 21.23, 84.94], "watchS": [7, 3, 2, 3, 5, 4, 4], "giftCnt": 9, "top3raw": "u_12207925,8837422,11476702", "top3": [{"id": "12207925", "name": "", "inTop50": false}, {"id": "8837422", "name": "", "inTop50": false}, {"id": "11476702", "name": "", "inTop50": false}]}, {"pos": 28, "id": 5064801, "name": "Xavier_707ToThePines_removed_2025-07-14T22:18:58Z", "created": "2022-07-01", "lastActive": "2025-07-14", "culture": "en", "country": "United States", "lastRecharge": "2025-07-12 18:56", "total": 95942.19, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 29, "id": 5796410, "name": "Chris58542652", "created": "2023-01-02", "lastActive": "2026-02-13", "culture": "en", "country": "United States", "lastRecharge": "2026-02-13 14:32", "total": 95054.52, "rechargeDays7": 1, "weekly": [749.97, 1749.93, 3349.86, 749.97, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 749.97, 0.0, 0.0], "watchS": [110, 0, 0, 110, 254, 0, 0], "giftCnt": 4, "top3raw": "u_8677440,12525421,22917886", "top3": [{"id": "8677440", "name": "QueenAleksaGrey", "inTop50": true}, {"id": "12525421", "name": "Sexxydaisybadbarbie", "inTop50": true}, {"id": "22917886", "name": "", "inTop50": false}]}, {"pos": 30, "id": 7782192, "name": "Brooks50993300_removed_2025-01-19T03:22:29Z", "created": "2023-05-17", "lastActive": "2025-01-19", "culture": "en", "country": "United States", "lastRecharge": "2025-01-17 07:05", "total": 91807.64, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 31, "id": 5710760, "name": "Big_Not_Good_Enough", "created": "2022-12-11", "lastActive": "2026-02-21", "culture": "en", "country": "Canada", "lastRecharge": "2026-01-02 06:29", "total": 85390.3, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 32, "id": 8933627, "name": "Vp_603", "created": "2023-11-13", "lastActive": "2026-02-24", "culture": "other", "country": "United States", "lastRecharge": "2026-02-22 10:21", "total": 84300.99, "rechargeDays7": 6, "weekly": [0.0, 0.0, 1949.86, 3818.2, 1902.06], "daily": [159.22, 549.93, 236.98, 1022.37, 0.0, 444.71, 1404.99], "watchS": [1, 1, 1, 0, 0, 1, 1], "giftCnt": 1, "top3raw": "u_3401896", "top3": [{"id": "3401896", "name": "", "inTop50": false}]}, {"pos": 33, "id": 10388660, "name": "WatterBoy", "created": "2024-05-17", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 07:27", "total": 85755.05, "rechargeDays7": 5, "weekly": [11073.28, 6039.45, 8174.1, 21628.11, 1872.36], "daily": [224.6, 2417.92, 0.0, 2086.32, 0.0, 3209.76, 13689.51], "watchS": [45, 28, 15, 54, 19, 4, 32], "giftCnt": 1, "top3raw": "u_4918323,9090561,9988421", "top3": [{"id": "4918323", "name": "BellaBiddie", "inTop50": true}, {"id": "9090561", "name": "", "inTop50": false}, {"id": "9988421", "name": "", "inTop50": false}]}, {"pos": 34, "id": 2140275, "name": "MisterGray", "created": "2021-04-10", "lastActive": "2026-02-10", "culture": "en", "country": "United States", "lastRecharge": "2025-05-22 17:56", "total": 83486.52, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 35, "id": 8217166, "name": "RHECMOMMA94", "created": "2023-07-15", "lastActive": "2023-12-01", "culture": "en", "country": "United States", "lastRecharge": "2023-12-01 03:18", "total": 83235.98, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 36, "id": 5101530, "name": "dadtoosix", "created": "2022-07-13", "lastActive": "2025-09-20", "culture": "en", "country": "United States", "lastRecharge": "2025-09-03 18:14", "total": 79862.58, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 37, "id": 9959937, "name": ".BP_89", "created": "2024-04-14", "lastActive": "2026-02-24", "culture": "en", "country": "Canada", "lastRecharge": "2026-01-27 05:01", "total": 79214.89, "rechargeDays7": 0, "weekly": [199.98, 819.94, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_2059078,20634846,12891191", "top3": [{"id": "2059078", "name": "", "inTop50": false}, {"id": "20634846", "name": "", "inTop50": false}, {"id": "12891191", "name": "", "inTop50": false}]}, {"pos": 38, "id": 10387718, "name": "AZGuy79", "created": "2024-05-17", "lastActive": "2026-02-10", "culture": "en", "country": "United States", "lastRecharge": "2026-01-02 07:05", "total": 78834.74, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 39, "id": 6436206, "name": "7morefumbles", "created": "2023-03-24", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-23 04:38", "total": 75893.42, "rechargeDays7": 3, "weekly": [300.38, 85.78, 48.27, 236.05, 171.62], "daily": [0.0, 0.0, 0.0, 91.19, 0.0, 69.73, 75.13], "watchS": [0, 0, 0, 0, 0, 0, 1], "giftCnt": 4, "top3raw": "u_5072653,8099412,6443040", "top3": [{"id": "5072653", "name": "", "inTop50": false}, {"id": "8099412", "name": "", "inTop50": false}, {"id": "6443040", "name": "butterflyunicorn", "inTop50": true}]}, {"pos": 40, "id": 13714384, "name": "Lakeshow85_removed_2026-02-20T06:45:59Z", "created": "2024-12-17", "lastActive": "2026-02-20", "culture": "en", "country": "United States", "lastRecharge": "2026-02-03 08:10", "total": 75872.68, "rechargeDays7": 0, "weekly": [364.58, 1973.24, 21.43, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 1, 0, 0], "giftCnt": 0, "top3raw": "u_20798220,9565666", "top3": [{"id": "20798220", "name": "", "inTop50": false}, {"id": "9565666", "name": "", "inTop50": false}]}, {"pos": 41, "id": 11897216, "name": "ItsClassified", "created": "2024-10-20", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-19 05:55", "total": 75512.34, "rechargeDays7": 3, "weekly": [272.17, 544.34, 544.34, 816.51, 544.34], "daily": [272.17, 0.0, 0.0, 272.17, 0.0, 0.0, 272.17], "watchS": [2, 52, 6, 48, 17, 6, 5], "giftCnt": 21, "top3raw": "u_11157769,19768546,24505535", "top3": [{"id": "11157769", "name": "", "inTop50": false}, {"id": "19768546", "name": "", "inTop50": false}, {"id": "24505535", "name": "", "inTop50": false}]}, {"pos": 42, "id": 6093198, "name": "DaddyBron", "created": "2023-02-27", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-21 23:19", "total": 74138.26, "rechargeDays7": 4, "weekly": [273.06, 404.13, 577.95, 425.96, 441.94], "daily": [0.0, 21.83, 131.06, 0.0, 218.46, 0.0, 54.61], "watchS": [4, 151, 13, 7, 94, 10, 72], "giftCnt": 37, "top3raw": "u_9498989,5481651,19524935", "top3": [{"id": "9498989", "name": "", "inTop50": false}, {"id": "5481651", "name": "", "inTop50": false}, {"id": "19524935", "name": "", "inTop50": false}]}, {"pos": 43, "id": 11959037, "name": "Keywest", "created": "2024-10-25", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-25 07:25", "total": 74310.53, "rechargeDays7": 2, "weekly": [1207.4, 291.84, 1067.44, 820.57, 266.86], "daily": [0.0, 0.0, 0.0, 553.71, 0.0, 0.0, 266.86], "watchS": [23, 5, 2, 6, 10, 0, 5], "giftCnt": 23, "top3raw": "u_12721300,12448807,12311619", "top3": [{"id": "12721300", "name": "", "inTop50": false}, {"id": "12448807", "name": "", "inTop50": false}, {"id": "12311619", "name": "", "inTop50": false}]}, {"pos": 44, "id": 11611331, "name": ".Mello", "created": "2024-09-23", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-24 21:19", "total": 73513.17, "rechargeDays7": 5, "weekly": [3279.23, 826.32, 1091.3, 569.88, 2249.91], "daily": [69.29, 10.66, 99.98, 0.0, 0.0, 319.97, 69.98], "watchS": [7, 15, 80, 35, 1, 40, 11], "giftCnt": 12, "top3raw": "u_9880509,2177887,6851658", "top3": [{"id": "9880509", "name": "", "inTop50": false}, {"id": "2177887", "name": "", "inTop50": false}, {"id": "6851658", "name": "", "inTop50": false}]}, {"pos": 45, "id": 5355608, "name": "Davesea", "created": "2022-09-14", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-24 03:20", "total": 73437.05, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 74.97], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 1, 0, 0, 1], "giftCnt": 0, "top3raw": "u_7299265,10492052,584671", "top3": [{"id": "7299265", "name": "", "inTop50": false}, {"id": "10492052", "name": "", "inTop50": false}, {"id": "584671", "name": "", "inTop50": false}]}, {"pos": 46, "id": 8973591, "name": "Jerrysunny", "created": "2023-11-20", "lastActive": "2026-02-24", "culture": "nl", "country": "Netherlands", "lastRecharge": "2026-02-23 19:11", "total": 72946.56, "rechargeDays7": 3, "weekly": [749.97, 749.97, 749.97, 999.96, 499.98], "daily": [0.0, 249.99, 0.0, 0.0, 249.99, 499.98, 0.0], "watchS": [634, 323, 854, 429, 695, 204, 434], "giftCnt": 107, "top3raw": "u_28120063,27251267,7950428", "top3": [{"id": "28120063", "name": "", "inTop50": false}, {"id": "27251267", "name": "", "inTop50": false}, {"id": "7950428", "name": "", "inTop50": false}]}, {"pos": 47, "id": 5465494, "name": "Accountant1966", "created": "2022-10-16", "lastActive": "2025-08-19", "culture": "en", "country": "United States", "lastRecharge": "2025-08-16 05:38", "total": 72764.06, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 48, "id": 4998411, "name": "Diamond..77", "created": "2022-06-10", "lastActive": "2022-12-06", "culture": "en", "country": "United States", "lastRecharge": "2022-11-22 09:04", "total": 72538.65, "rechargeDays7": 0, "weekly": [0.0, 0.0, 0.0, 0.0, 0.0], "daily": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 0, 0, 0, 0], "giftCnt": 0, "top3raw": "u_", "top3": []}, {"pos": 49, "id": 1145983, "name": "CaptainDougie", "created": "2020-12-30", "lastActive": "2026-02-24", "culture": "en", "country": "United States", "lastRecharge": "2026-02-24 02:59", "total": 72569.17, "rechargeDays7": 1, "weekly": [53.16, 265.8, 106.33, 53.16, 53.16], "daily": [0.0, 0.0, 0.0, 53.16, 0.0, 0.0, 0.0], "watchS": [0, 0, 0, 10, 1, 104, 0], "giftCnt": 4, "top3raw": "u_9800525,5636096,29463579", "top3": [{"id": "9800525", "name": "", "inTop50": false}, {"id": "5636096", "name": "", "inTop50": false}, {"id": "29463579", "name": "", "inTop50": false}]}, {"pos": 50, "id": 7815614, "name": "user98122555", "created": "2023-05-20", "lastActive": "2026-02-19", "culture": "fr", "country": "Canada", "lastRecharge": "2026-02-10 13:40", "total": 69948.0, "rechargeDays7": 1, "weekly": [0.0, 14.97, 0.0, 19.99, 0.0], "daily": [0.0, 19.99, 0.0, 0.0, 0.0, 0.0, 0.0], "watchS": [0, 1, 0, 1, 0, 0, 0], "giftCnt": 1, "top3raw": "u_8644406,9498205,11451425", "top3": [{"id": "8644406", "name": "JessieOff", "inTop50": true}, {"id": "9498205", "name": "", "inTop50": false}, {"id": "11451425", "name": "", "inTop50": false}]}];
+
+const WEEKS=["W1(01.19)","W2(01.26)","W3(02.02)","W4(02.09)","W5(02.16)"];
+const DAYS=["02/09","02/10","02/11","02/12","02/13","02/14","02/15"];
+const TC={
+  "鲸鱼":{c:"#eab308",bg:"rgba(234,179,8,0.12)",l:"🐋 鲸鱼"},
+  "海豚":{c:"#a855f7",bg:"rgba(168,85,247,0.12)",l:"🐬 海豚"},
+  "金鱼":{c:"#3b82f6",bg:"rgba(59,130,246,0.12)",l:"🐟 金鱼"},
+  "虾米":{c:"#64748b",bg:"rgba(100,116,139,0.12)",l:"🦐 虾米"}
+};
+const CC=["#eab308","#a855f7","#3b82f6","#10b981","#ef4444","#ec4899","#06b6d4"];
+
+const D=RAW.map(r=>{
+  const wCur=r.weekly[4],wPrev=r.weekly[3];
+  const wCh=wPrev?+((wCur-wPrev)/wPrev*100).toFixed(1):wCur>0?999:0;
+  const dCur=r.daily[6],dPrev=r.daily[5];
+  const dCh=dPrev?+((dCur-dPrev)/dPrev*100).toFixed(1):dCur>0?999:0;
+  const vCur=r.watchS[6],vPrev=r.watchS[5];
+  const vCh=vPrev?+((vCur-vPrev)/vPrev*100).toFixed(1):vCur>0?999:0;
+  const tier=wCur>5000?"鲸鱼":wCur>1500?"海豚":wCur>300?"金鱼":"虾米";
+  const now=new Date("2026-02-25");
+  const lr=r.lastRecharge?new Date(r.lastRecharge):null;
+  const daysSince=lr?Math.floor((now-lr)/(1000*60*60*24)):99;
+  const rechFreq=r.daily.filter(v=>v>0).length;
+  const watchAvg=+(r.watchS.reduce((a,b)=>a+b,0)/7).toFixed(1);
+  const watchFirst=r.watchS.slice(0,3).reduce((a,b)=>a+b,0)/3;
+  const watchLast=r.watchS.slice(4).reduce((a,b)=>a+b,0)/3;
+
+  // Risk score
+  let risk=0;
+  if(wCh<-30)risk+=25;else if(wCh<-15)risk+=15;else if(wCh<0)risk+=8;
+  if(dCh<-40)risk+=12;else if(dCh<-20)risk+=8;
+  if(r.rechargeDays7<=1)risk+=18;else if(r.rechargeDays7<=3)risk+=10;
+  if(daysSince>=7)risk+=15;else if(daysSince>=4)risk+=10;else if(daysSince>=2)risk+=5;
+  if(r.giftCnt<=1)risk+=10;else if(r.giftCnt<=3)risk+=5;
+  if(watchFirst>0&&watchLast/watchFirst<0.5)risk+=12;else if(watchFirst>0&&watchLast/watchFirst<0.7)risk+=6;
+  if(wCur===0&&wPrev===0)risk+=10;
+  risk=Math.min(100,Math.max(0,risk));
+  const riskLevel=risk>=55?"高危":risk>=30?"关注":"安全";
+
+  const hasLinked=r.top3.some(t=>t.inTop50);
+
+  // ══ WHALE TYPING ══
+  const rechDays=r.daily.filter(v=>v>0).length;
+  const watchDays=r.watchS.filter(v=>v>0).length;
+  const rechFreqR=rechDays/7;
+  const watchFreqR=watchDays/7;
+  const freqGap=watchFreqR-rechFreqR;
+  const nonZeroDaily=r.daily.filter(v=>v>0);
+  const dailyMean=nonZeroDaily.length?nonZeroDaily.reduce((a,b)=>a+b,0)/nonZeroDaily.length:0;
+  const dailyStd=nonZeroDaily.length>1?Math.sqrt(nonZeroDaily.reduce((s,v)=>s+(v-dailyMean)**2,0)/nonZeroDaily.length):0;
+  const dailyCV=dailyMean>0?dailyStd/dailyMean:0;
+  const maxDaily=Math.max(...r.daily);
+  const sumDaily=r.daily.reduce((a,b)=>a+b,0);
+  const maxDailyRatio=sumDaily>0?maxDaily/sumDaily:0;
+  const weeklyActive=r.weekly.filter(v=>v>0).length;
+  const weeklySum=r.weekly.reduce((a,b)=>a+b,0);
+  const weeklyNZ=r.weekly.filter(v=>v>0);
+  const weeklyMean=weeklyNZ.length?weeklyNZ.reduce((a,b)=>a+b,0)/weeklyNZ.length:0;
+  const weeklyStd=weeklyNZ.length>1?Math.sqrt(weeklyNZ.reduce((s,v)=>s+(v-weeklyMean)**2,0)/weeklyNZ.length):0;
+  const weeklyCV=weeklyMean>0?weeklyStd/weeklyMean:0;
+
+  let whaleType,whaleTypeKey;
+  if(weeklyActive===0&&rechDays===0){
+    whaleType="沉默型";whaleTypeKey="dormant";
+  } else if(rechDays>=4&&freqGap<0.2){
+    whaleType="实时型";whaleTypeKey="realtime";
+  } else if(rechDays<=2&&watchDays>=3&&weeklyActive>=2){
+    whaleType="囤币型";whaleTypeKey="hoarding";
+  } else if(rechDays<=2&&maxDailyRatio>0.7&&weeklyCV>1.0){
+    whaleType="脉冲型";whaleTypeKey="impulse";
+  } else if(weeklyActive>=2&&rechDays>=2){
+    whaleType="实时型";whaleTypeKey="realtime";
+  } else if(weeklyActive>=2&&watchDays>=2){
+    whaleType="囤币型";whaleTypeKey="hoarding";
+  } else {
+    whaleType="脉冲型";whaleTypeKey="impulse";
+  }
+
+  // ══ HEALTH ASSESSMENT (per type) ══
+  let healthStatus,healthDetail,healthKey;
+  if(whaleTypeKey==="dormant"){
+    const dormWeeks=r.weekly.filter(v=>v===0).length;
+    if(dormWeeks>=4){healthStatus="已流失";healthKey="lost";healthDetail=`连续${dormWeeks}周零充值, 最后活跃${r.lastActive||"未知"}`;}
+    else{healthStatus="沉默中";healthKey="warn";healthDetail=`${dormWeeks}周零充值, 可能临时离开`;}
+  } else if(whaleTypeKey==="realtime"){
+    const avgRechDays=weeklyNZ.length>0?rechDays:0;
+    if(rechDays>=5&&wCh>=-15){healthStatus="健康";healthKey="healthy";healthDetail=`充值${rechDays}天/周, 节奏稳定`;}
+    else if(rechDays>=3&&wCh>=-30){healthStatus="正常";healthKey="ok";healthDetail=`充值${rechDays}天/周, 轻微波动(${wCh>0?"+":""}${wCh}%)`;}
+    else if(rechDays>=2){healthStatus="关注";healthKey="warn";healthDetail=`充值降至${rechDays}天/周(实时型正常≥4天), 周变${wCh}%`;}
+    else{healthStatus="危险";healthKey="danger";healthDetail=`仅充${rechDays}天(实时型正常≥4天), 节奏严重偏离`;}
+  } else if(whaleTypeKey==="hoarding"){
+    if(watchDays>=4&&weeklyActive>=3){healthStatus="健康";healthKey="healthy";healthDetail=`观看${watchDays}天/周, 余额充足, 正常囤币节奏`;}
+    else if(watchDays>=3&&daysSince<=14){healthStatus="正常";healthKey="ok";healthDetail=`观看${watchDays}天, 距上次充值${daysSince}天, 在正常间隔内`;}
+    else if(watchDays>=2&&daysSince<=21){healthStatus="关注";healthKey="warn";healthDetail=`距上次充值${daysSince}天, 观看${watchDays}天, 接近充值周期`;}
+    else if(watchDays>=1){healthStatus="预警";healthKey="danger";healthDetail=`距上次充值${daysSince}天, 观看降至${watchDays}天, 可能余额耗尽`;}
+    else{healthStatus="危险";healthKey="danger";healthDetail=`距上次充值${daysSince}天且停止观看, 疑似流失`;}
+  } else { // impulse
+    if(wCur>0&&wCh>=0){healthStatus="活跃";healthKey="healthy";healthDetail=`本周有充值$${wCur.toFixed(0)}, 脉冲型正常波动`;}
+    else if(weeklyActive>=3){healthStatus="正常";healthKey="ok";healthDetail=`5周中${weeklyActive}周有充值, 符合脉冲特征`;}
+    else if(weeklyActive>=2){healthStatus="关注";healthKey="warn";healthDetail=`5周仅${weeklyActive}周有充值, 活跃度偏低`;}
+    else{healthStatus="危险";healthKey="danger";healthDetail=`5周仅${weeklyActive}周有充值, 距上次${daysSince}天`;}
+  }
+
+  return{...r,wCur,wPrev,wCh,dCur,dPrev,dCh,vCur,vPrev,vCh,tier,daysSince,rechFreq,rechDays,watchDays,watchAvg,risk,riskLevel,hasLinked,whaleType,whaleTypeKey,healthStatus,healthKey,healthDetail,dailyCV,weeklyCV,weeklyActive,freqGap};
+});
+
+let sortKey="total",sortD="desc",tierF="ALL",search="",tab="ranking";
+let compared=new Set();let charts={};
+
+function mkRanks(k){const s=[...D].sort((a,b)=>(b[k]||0)-(a[k]||0));const m={};s.forEach((d,i)=>m[d.name]=i+1);return m;}
+const tCurR=mkRanks("total");
+D.forEach(d=>d.prevTotal=d.total-d.wCur);
+const tPrevR=mkRanks("prevTotal");
+
+function fmt(v){return v>=10000?`$${(v/1000).toFixed(1)}k`:v>=1?`$${v.toLocaleString(undefined,{maximumFractionDigits:0})}`:v>0?`$${v.toFixed(2)}`:"$0"}
+function fmtN(v){return v>=10000?`${(v/1000).toFixed(1)}k`:v.toLocaleString()}
+function spark(data,color,w=90,h=32){
+  const mn=Math.min(...data),mx=Math.max(...data),r=mx-mn||1;
+  const pad=6,ph=h-pad*2;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${pad+ph-((v-mn)/r)*ph}`).join(" ");
+  const fy=pad+ph-((data[0]-mn)/r)*ph;
+  const ly=pad+ph-((data[data.length-1]-mn)/r)*ph;
+  const fv=data[0]>=1000?(data[0]/1000).toFixed(1)+"k":data[0]>=100?Math.round(data[0]):data[0];
+  const lv=data[data.length-1]>=1000?(data[data.length-1]/1000).toFixed(1)+"k":data[data.length-1]>=100?Math.round(data[data.length-1]):data[data.length-1];
+  return`<svg width="${w+8}" height="${h}" style="display:block"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="0" cy="${fy}" r="1.5" fill="${color}"/><circle cx="${w}" cy="${ly}" r="2" fill="${color}"/><text x="0" y="${Math.max(8,fy-4)}" fill="#94a3b8" font-size="7" font-family="JetBrains Mono,monospace">${fv}</text><text x="${w}" y="${Math.max(8,ly-4)}" fill="#e2e8f0" font-size="7" font-family="JetBrains Mono,monospace" text-anchor="end">${lv}</text></svg>`;
+}
+function rankArrow(d){if(d>0)return`<span class="mono change-pos" style="font-weight:600;font-size:11px">▲${d}</span>`;if(d<0)return`<span class="mono change-neg" style="font-weight:600;font-size:11px">▼${Math.abs(d)}</span>`;return`<span style="color:#475569;font-size:11px">—</span>`;}
+function chgClass(v){return v>0?"change-pos":v<0?"change-neg":"change-neu"}
+function riskBadge(r,l){return`<span class="risk-badge risk-${l==="高危"?"high":l==="关注"?"mid":"low"}">${l} ${r}</span>`;}
+function destroyC(k){if(charts[k]){charts[k].destroy();charts[k]=null;}}
+function cmpOrTop5(){return compared.size>0?D.filter(d=>compared.has(d.name)):[...D].sort((a,b)=>b.wCur-a.wCur).slice(0,5);}
+const bOpts={responsive:true,plugins:{legend:{labels:{color:"#94a3b8",font:{size:11}}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",borderColor:"rgba(148,163,184,0.2)",borderWidth:1}},scales:{x:{ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}},y:{ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}}}};
+
+// ══════ STATS ══════
+function renderStats(){
+  const tr=D.reduce((s,d)=>s+d.wCur,0),pr=D.reduce((s,d)=>s+d.wPrev,0);
+  const tc=pr?((tr-pr)/pr*100).toFixed(1):0;
+  const high=D.filter(d=>d.riskLevel==="高危").length;
+  const declining=D.filter(d=>d.wCh<-15&&d.wPrev>0).length;
+  const dormant=D.filter(d=>d.daysSince>=3).length;
+  const linked=D.filter(d=>d.hasLinked).length;
+  const active=D.filter(d=>d.rechargeDays7>0).length;
+  const cards=[
+    {l:"本周总充值(W5)",i:"💰",v:fmt(tr),s:`${tc>0?"+":""}${tc}%`,c:tc>0?"#10b981":"#ef4444"},
+    {l:"高危用户",i:"🚨",v:high,s:`/ ${D.length}`,c:high>10?"#ef4444":"#f59e0b"},
+    {l:"近7天活跃",i:"⚡",v:active,s:`/ ${D.length}`,c:active>25?"#10b981":"#ef4444"},
+    {l:"≥3天未充值",i:"💤",v:dormant,s:`/ ${D.length}`,c:dormant>20?"#ef4444":"#f59e0b"},
+    {l:"充值下滑>15%",i:"📉",v:declining,s:`/ ${D.length}`,c:"#ef4444"},
+    {l:"关联主播Top50",i:"🔗",v:linked,s:`/ ${D.length}`,c:"#06b6d4"},
+  ];
+  document.getElementById("statsGrid").innerHTML=cards.map((c,i)=>`<div class="stat-card" style="animation-delay:${i*0.06}s"><div class="stat-label"><span>${c.l}</span><span style="font-size:16px">${c.i}</span></div><div class="stat-value">${c.v}</div><div class="stat-sub" style="color:${c.c}">${c.s}</div></div>`).join("");
+}
+
+function renderTiers(){
+  const ct={"鲸鱼":0,"海豚":0,"金鱼":0,"虾米":0};D.forEach(d=>ct[d.tier]++);
+  const ts=[{k:"ALL",l:"全部",n:D.length},...Object.entries(TC).map(([k,v])=>({k,l:v.l,n:ct[k],c:v.c,bg:v.bg}))];
+  document.getElementById("tierGroup").innerHTML=ts.map(t=>{
+    const a=tierF===t.k,bg=a?(t.bg||"rgba(148,163,184,0.15)"):"transparent",c=a?(t.c||"#e2e8f0"):"#64748b";
+    return`<button class="tier-btn" data-tier="${t.k}" style="background:${bg};color:${c}">${t.l||"全部"} (${t.n})</button>`;
+  }).join("");
+}
+
+// ══════ TABLE ══════
+function filtered(){
+  let d=[...D];
+  if(tierF!=="ALL")d=d.filter(x=>x.tier===tierF);
+  if(search)d=d.filter(x=>x.name.toLowerCase().includes(search.toLowerCase()));
+  d.sort((a,b)=>sortD==="desc"?(b[sortKey]||0)-(a[sortKey]||0):(a[sortKey]||0)-(b[sortKey]||0));
+  return d.map((x,i)=>({...x,rank:i+1}));
+}
+function renderTable(){
+  const sk=sortKey,sd=sortD;
+  function si(k){return sk===k?(sd==="desc"?" ↓":" ↑"):"";}
+  function sc(k){return sk===k?" sorted":"";}
+  document.getElementById("tableHead").innerHTML=`
+    <tr>
+      <th rowspan="2" style="width:36px;text-align:left">#</th>
+      <th rowspan="2" style="width:46px" title="总充值排名变动(W5)">变动</th>
+      <th rowspan="2" style="width:120px;text-align:left">用户</th>
+      <th rowspan="2" style="width:70px">ID</th>
+      <th rowspan="2" style="width:56px">等级</th>
+      <th rowspan="2" class="sortable${sc("total")}" data-sort="total" style="width:80px"><span style="color:#10b981">总充值</span>${si("total")}</th>
+      <th colspan="4" class="group-header" style="background:rgba(234,179,8,0.04);border-left:1px solid rgba(234,179,8,0.15)">📅 日维度 (02.15)</th>
+      <th colspan="4" class="group-header" style="background:rgba(168,85,247,0.04);border-left:1px solid rgba(168,85,247,0.15)">📆 周维度 (W5)</th>
+      <th rowspan="2" class="sortable${sc("vCur")}" data-sort="vCur" style="width:50px">👁观看${si("vCur")}</th>
+      <th rowspan="2" style="width:88px">👁趋势</th>
+      <th rowspan="2" class="sortable${sc("giftCnt")}" data-sort="giftCnt" style="width:50px">💝送礼${si("giftCnt")}</th>
+      <th rowspan="2" class="sortable${sc("rechargeDays7")}" data-sort="rechargeDays7" style="width:50px">充天${si("rechargeDays7")}</th>
+      <th rowspan="2" class="sortable${sc("risk")}" data-sort="risk" style="width:76px">风险${si("risk")}</th>
+      <th rowspan="2" style="width:68px">分型</th>
+      <th rowspan="2" style="width:56px">健康</th>
+      <th rowspan="2" style="width:36px">对比</th>
+    </tr><tr>
+      <th class="sortable${sc("dCur")}" data-sort="dCur" style="width:76px;background:rgba(234,179,8,0.04);border-left:1px solid rgba(234,179,8,0.08)">日充值${si("dCur")}</th>
+      <th class="sortable${sc("dCh")}" data-sort="dCh" style="width:58px;background:rgba(234,179,8,0.04)">日环比${si("dCh")}</th>
+      <th style="width:92px;background:rgba(234,179,8,0.04)">日趋势</th>
+      <th style="width:56px;background:rgba(234,179,8,0.04)">日排名</th>
+      <th class="sortable${sc("wCur")}" data-sort="wCur" style="width:80px;background:rgba(168,85,247,0.04);border-left:1px solid rgba(168,85,247,0.08)">周充值${si("wCur")}</th>
+      <th class="sortable${sc("wCh")}" data-sort="wCh" style="width:58px;background:rgba(168,85,247,0.04)">周环比${si("wCh")}</th>
+      <th style="width:92px;background:rgba(168,85,247,0.04)">周趋势</th>
+      <th style="width:56px;background:rgba(168,85,247,0.04)">周排名</th>
+    </tr>`;
+  const data=filtered(),medals=["🥇","🥈","🥉"];
+  const wkR=mkRanks("wCur"),wkPR=mkRanks("wPrev"),dkR=mkRanks("dCur"),dkPR=mkRanks("dPrev");
+  document.getElementById("tableBody").innerHTML=data.map((d,i)=>{
+    const t=TC[d.tier],ic=compared.has(d.name);
+    const tRD=(tPrevR[d.name]||50)-(tCurR[d.name]||50);
+    const dRD=(dkPR[d.name]||50)-(dkR[d.name]||50);
+    const wRD=(wkPR[d.name]||50)-(wkR[d.name]||50);
+    const wCD=d.wCh>=999?"NEW":d.wCh===0&&d.wCur===0?"-":`${d.wCh>0?"+":""}${d.wCh}%`;
+    const dCD=d.dCh>=999?"NEW":d.dCh===0&&d.dCur===0?"-":`${d.dCh>0?"+":""}${d.dCh}%`;
+    const t3tip=d.top3.map(x=>x.inTop50?`${x.id}(${x.name})✓`:x.id).join(", ");
+    return`<tr class="${ic?"compared":""}" data-name="${d.name}">
+      <td class="mono" style="text-align:left;font-weight:700;font-size:14px;color:${i<3?"#eab308":"#94a3b8"}">${i<3?medals[i]:d.rank}</td>
+      <td style="text-align:center">${rankArrow(tRD)}</td>
+      <td><div style="font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap" title="Top3主播: ${t3tip}"><div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,${t.c}33,${t.c}11);border:1px solid ${t.c}44;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${t.c};flex-shrink:0">${d.name[0]}</div><div><div style="font-size:12px">${d.name.length>14?d.name.slice(0,14)+"..":d.name}</div><div style="font-size:10px;color:#64748b">${d.country}${d.hasLinked?" · 🔗":""}</div></div></div></td>
+      <td class="mono" style="text-align:center;font-size:10px;color:#64748b">${d.id}</td>
+      <td style="text-align:center"><span class="tier-badge" style="background:${t.bg};color:${t.c};border:1px solid ${t.c}33">${d.tier}</span></td>
+      <td class="mono" style="text-align:center;font-weight:700;font-size:12px;color:#10b981">${fmt(d.total)}</td>
+      <td class="mono col-daily" style="text-align:center;font-weight:700;font-size:12px;border-left:1px solid rgba(234,179,8,0.06)">${fmt(d.dCur)}</td>
+      <td class="mono col-daily ${chgClass(d.dCh)}" style="text-align:center;font-weight:600;font-size:11px">${dCD}</td>
+      <td class="col-daily" style="text-align:center">${d.daily.some(v=>v>0)?spark(d.daily,d.dCh>=0?"#eab308":"#ef4444"):"<span style='color:#334155'>—</span>"}</td>
+      <td class="col-daily" style="text-align:center">${rankArrow(dRD)}</td>
+      <td class="mono col-weekly" style="text-align:center;font-weight:700;font-size:12px;border-left:1px solid rgba(168,85,247,0.06)">${fmt(d.wCur)}</td>
+      <td class="mono col-weekly ${chgClass(d.wCh)}" style="text-align:center;font-weight:600;font-size:11px">${wCD}</td>
+      <td class="col-weekly" style="text-align:center">${d.weekly.some(v=>v>0)?spark(d.weekly,d.wCh>=0?"#a855f7":"#ef4444"):"<span style='color:#334155'>—</span>"}</td>
+      <td class="col-weekly" style="text-align:center">${rankArrow(wRD)}</td>
+      <td class="mono" style="text-align:center;font-size:11px">${d.vCur||"-"}</td>
+      <td style="text-align:center">${d.watchS.some(v=>v>0)?spark(d.watchS,d.vCh>=0?"#06b6d4":"#ef4444"):"<span style='color:#334155'>—</span>"}</td>
+      <td class="mono" style="text-align:center;font-size:11px">${d.giftCnt}</td>
+      <td class="mono" style="text-align:center;font-size:11px;color:${d.rechargeDays7<=1?"#ef4444":d.rechargeDays7<=3?"#f59e0b":"#10b981"}">${d.rechargeDays7}<span style="color:#475569;font-size:9px">/7</span></td>
+      <td style="text-align:center">${riskBadge(d.risk,d.riskLevel)}</td>
+      <td style="text-align:center"><span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;background:${{realtime:"rgba(59,130,246,0.1)",hoarding:"rgba(168,85,247,0.1)",impulse:"rgba(245,158,11,0.1)",dormant:"rgba(100,116,139,0.1)"}[d.whaleTypeKey]};color:${{realtime:"#3b82f6",hoarding:"#a855f7",impulse:"#f59e0b",dormant:"#64748b"}[d.whaleTypeKey]}">${d.whaleType}</span></td>
+      <td style="text-align:center"><span style="font-size:10px;font-weight:600;color:${{healthy:"#10b981",ok:"#3b82f6",warn:"#f59e0b",danger:"#ef4444",lost:"#64748b"}[d.healthKey]}" title="${d.healthDetail}">${{healthy:"💚",ok:"💙",warn:"🟡",danger:"🔴",lost:"⚫"}[d.healthKey]}${d.healthStatus}</span></td>
+      <td style="text-align:center"><button class="compare-btn${ic?" active":""}" data-cmp="${d.name}">${ic?"✓":"+"}</button></td>
+    </tr>`;
+  }).join("");
+}
+
+// ══════ TREND ══════
+function renderTrend(){
+  const ss=cmpOrTop5();
+  const lbl=compared.size>0?`已选: ${[...compared].join(", ")}`:"默认展示 Top 5 大R";
+  ["weekSub","daySub","watchSub"].forEach(id=>document.getElementById(id).textContent=lbl);
+  destroyC("wc");charts.wc=new Chart(document.getElementById("weekChart"),{type:"line",data:{labels:WEEKS,datasets:ss.map((s,i)=>({label:s.name,data:s.weekly,borderColor:CC[i%7],backgroundColor:CC[i%7]+"18",fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:CC[i%7],borderWidth:2}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,ticks:{...bOpts.scales.y.ticks,callback:v=>fmt(v)}}}}});
+  destroyC("dc");charts.dc=new Chart(document.getElementById("dayChart"),{type:"line",data:{labels:DAYS,datasets:ss.map((s,i)=>({label:s.name,data:s.daily,borderColor:CC[i%7],backgroundColor:CC[i%7]+"18",fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:CC[i%7],borderWidth:2}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,ticks:{...bOpts.scales.y.ticks,callback:v=>fmt(v)}}}}});
+  destroyC("wt");charts.wt=new Chart(document.getElementById("watchChart"),{type:"line",data:{labels:DAYS,datasets:ss.map((s,i)=>({label:s.name,data:s.watchS,borderColor:CC[i%7],tension:0.3,pointRadius:3,pointBackgroundColor:CC[i%7],borderWidth:2}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${c.raw}个主播`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,title:{display:true,text:"观看主播数",color:"#64748b"}}}}});
+
+  const top=[...D].sort((a,b)=>b.wCur-a.wCur).slice(0,20);
+  destroyC("tb");charts.tb=new Chart(document.getElementById("topBar"),{type:"bar",data:{labels:top.map(d=>d.name.length>12?d.name.slice(0,12)+"..":d.name),datasets:[{label:"W4",data:top.map(d=>d.wPrev),backgroundColor:"rgba(148,163,184,0.2)",borderRadius:4},{label:"W5",data:top.map(d=>d.wCur),backgroundColor:"#eab308",borderRadius:4}]},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${fmt(c.raw)}`}}},scales:{x:{ticks:{color:"#64748b",maxRotation:45,font:{size:9}},grid:{display:false}},y:{ticks:{color:"#64748b",callback:v=>fmt(v)},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+
+  const all=[...D].sort((a,b)=>b.wCur-a.wCur);
+  destroyC("ab");charts.ab=new Chart(document.getElementById("allBar"),{type:"bar",data:{labels:all.map((d,i)=>`${i+1}.${d.name.length>8?d.name.slice(0,8)+"..":d.name}`),datasets:[{label:"W5",data:all.map(d=>d.wCur),backgroundColor:all.map(d=>TC[d.tier].c+"88"),borderRadius:3}]},options:{responsive:true,plugins:{legend:{labels:{color:"#94a3b8",font:{size:11}}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",borderColor:"rgba(148,163,184,0.2)",borderWidth:1,callbacks:{title:c=>{const d=all[c[0].dataIndex];return`${d.name} [${d.tier}]`;},label:c=>`W5: ${fmt(c.raw)}`}}},scales:{x:{ticks:{color:"#64748b",font:{size:7},maxRotation:90,minRotation:45},grid:{display:false}},y:{ticks:{color:"#64748b",callback:v=>fmt(v)},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+}
+
+// ══════ BEHAVIOR ══════
+function renderBehavior(){
+  const ss=cmpOrTop5();
+  destroyC("as");charts.as=new Chart(document.getElementById("actScatter"),{type:"bubble",data:{datasets:Object.entries(TC).map(([tier,cfg])=>({label:cfg.l,data:D.filter(d=>d.tier===tier).map(d=>({x:d.rechargeDays7,y:d.wCur,r:Math.max(4,Math.min(20,Math.sqrt(d.giftCnt)*2)),name:d.name,gc:d.giftCnt,risk:d.risk})),backgroundColor:cfg.c+"55",borderColor:cfg.c,borderWidth:1}))},options:{responsive:true,plugins:{legend:{labels:{color:"#94a3b8",font:{size:11}}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",borderColor:"rgba(148,163,184,0.2)",borderWidth:1,callbacks:{title:c=>c[0].raw.name,label:c=>[`充值天数: ${c.raw.x}/7`,`周充值: ${fmt(c.raw.y)}`,`送礼主播: ${c.raw.gc}`,`风险: ${c.raw.risk}`]}}},scales:{x:{title:{display:true,text:"近7天充值天数",color:"#64748b"},ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}},y:{title:{display:true,text:"本周充值",color:"#64748b"},ticks:{color:"#64748b",callback:v=>fmt(v)},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+
+  document.getElementById("watchDetailSub").textContent=compared.size>0?`已选: ${[...compared].join(", ")}`:"观看从多变少=兴趣收窄";
+  destroyC("wd");charts.wd=new Chart(document.getElementById("watchDetail"),{type:"line",data:{labels:DAYS,datasets:ss.map((s,i)=>({label:s.name,data:s.watchS,borderColor:CC[i%7],tension:0.3,pointRadius:4,pointBackgroundColor:CC[i%7],borderWidth:2.5,backgroundColor:CC[i%7]+"15",fill:true}))},options:{...bOpts,plugins:{...bOpts.plugins,tooltip:{...bOpts.plugins.tooltip,callbacks:{label:c=>`${c.dataset.label}: ${c.raw}个主播`}}},scales:{...bOpts.scales,y:{...bOpts.scales.y,title:{display:true,text:"观看主播数",color:"#64748b"},ticks:{...bOpts.scales.y.ticks,stepSize:1}}}}});
+
+  const concG=[{l:"0(未送礼)",n:D.filter(d=>d.giftCnt===0).length,c:"#ef4444"},{l:"1-2个",n:D.filter(d=>d.giftCnt>=1&&d.giftCnt<=2).length,c:"#f59e0b"},{l:"3-5个",n:D.filter(d=>d.giftCnt>=3&&d.giftCnt<=5).length,c:"#3b82f6"},{l:"6+个",n:D.filter(d=>d.giftCnt>=6).length,c:"#10b981"}];
+  destroyC("cp");charts.cp=new Chart(document.getElementById("concPie"),{type:"doughnut",data:{labels:concG.map(g=>g.l),datasets:[{data:concG.map(g=>g.n),backgroundColor:concG.map(g=>g.c+"88"),borderColor:concG.map(g=>g.c),borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#94a3b8",font:{size:12},padding:16}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",bodyColor:"#e2e8f0",callbacks:{label:c=>`${c.label}: ${c.raw}人 (${(c.raw/D.length*100).toFixed(0)}%)`}}}}});
+
+  const freqData=D.filter(d=>d.daily.some(v=>v>0)).map(d=>{
+    const f3=d.daily.slice(0,3).filter(v=>v>0).length;
+    const l4=d.daily.slice(3).filter(v=>v>0).length;
+    return{name:d.name,first:f3,last:l4,diff:l4-f3,tier:d.tier};
+  }).sort((a,b)=>a.diff-b.diff).slice(0,20);
+  destroyC("fc");charts.fc=new Chart(document.getElementById("freqChart"),{type:"bar",data:{labels:freqData.map(d=>d.name.length>12?d.name.slice(0,12)+"..":d.name),datasets:[{label:"前3天",data:freqData.map(d=>d.first),backgroundColor:"rgba(148,163,184,0.3)",borderRadius:3},{label:"后4天",data:freqData.map(d=>d.last),backgroundColor:freqData.map(d=>d.diff<0?"rgba(239,68,68,0.5)":"rgba(16,185,129,0.5)"),borderRadius:3}]},options:{...bOpts,scales:{x:{ticks:{color:"#64748b",maxRotation:45,font:{size:9}},grid:{display:false}},y:{max:4,ticks:{color:"#64748b",stepSize:1},grid:{color:"rgba(148,163,184,0.06)"}}}}});
+
+  // Linkage
+  const linked=D.filter(d=>d.hasLinked);
+  let lh='';
+  if(linked.length>0){
+    linked.forEach(d=>{
+      const matches=d.top3.filter(t=>t.inTop50);
+      lh+=`<div class="alert-card alert-link"><div class="alert-icon" style="background:rgba(6,182,212,0.1);color:#06b6d4">🔗</div><div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:13px">${d.name}</span><span class="tier-badge" style="background:${TC[d.tier].bg};color:${TC[d.tier].c};border:1px solid ${TC[d.tier].c}33">${d.tier}</span></div><div style="font-size:11px;color:#94a3b8;margin-top:3px">总充值 ${fmt(d.total)} · W5 ${fmt(d.wCur)} · 送礼${d.giftCnt}主播</div><div style="font-size:12px;color:#06b6d4;margin-top:4px;font-weight:600">关联主播: ${matches.map(m=>`${m.name} (ID:${m.id})`).join(" · ")}</div></div></div>`;
+    });
+  }else{lh='<div style="padding:20px;text-align:center;color:#64748b">暂无匹配的主播Top50关联</div>';}
+  document.getElementById("linkageCard").innerHTML=lh;
+}
+
+// ══════ ALERT ══════
+function renderAlert(){
+  const rl={"高危":D.filter(d=>d.riskLevel==="高危").length,"关注":D.filter(d=>d.riskLevel==="关注").length,"安全":D.filter(d=>d.riskLevel==="安全").length};
+  destroyC("rp");charts.rp=new Chart(document.getElementById("riskPie"),{type:"doughnut",data:{labels:["🔴 高危","🟡 关注","🟢 安全"],datasets:[{data:[rl["高危"],rl["关注"],rl["安全"]],backgroundColor:["rgba(239,68,68,0.7)","rgba(245,158,11,0.7)","rgba(16,185,129,0.7)"],borderColor:["#ef4444","#f59e0b","#10b981"],borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#94a3b8",font:{size:12},padding:16}},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",bodyColor:"#e2e8f0",callbacks:{label:c=>`${c.label}: ${c.raw}人 (${(c.raw/D.length*100).toFixed(0)}%)`}}}}});
+
+  const riskTop=[...D].sort((a,b)=>b.risk-a.risk).slice(0,20);
+  destroyC("rb");charts.rb=new Chart(document.getElementById("riskBar"),{type:"bar",data:{labels:riskTop.map(d=>d.name),datasets:[{data:riskTop.map(d=>d.risk),backgroundColor:riskTop.map(d=>d.riskLevel==="高危"?"rgba(239,68,68,0.6)":d.riskLevel==="关注"?"rgba(245,158,11,0.5)":"rgba(16,185,129,0.4)"),borderRadius:4,barThickness:14}]},options:{indexAxis:"y",responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,23,42,0.95)",titleColor:"#94a3b8",bodyColor:"#e2e8f0",callbacks:{label:c=>{const d=riskTop[c.dataIndex];return[`风险: ${d.risk}`,`周充值: ${fmt(d.wCur)}`,`充值天数: ${d.rechargeDays7}/7`,`送礼主播: ${d.giftCnt}`];}}}},scales:{x:{max:100,ticks:{color:"#64748b"},grid:{color:"rgba(148,163,184,0.06)"}},y:{ticks:{color:"#94a3b8",font:{size:10}},grid:{display:false}}}}});
+
+  // Critical
+  const critical=D.filter(d=>d.riskLevel==="高危").sort((a,b)=>b.risk-a.risk);
+  let ch=`<div class="chart-title">🔴 高危预警 (${critical.length}人)</div><div class="chart-sub">充值大幅下滑+行为异常</div><div style="margin-top:8px;max-height:400px;overflow-y:auto">`;
+  critical.forEach(d=>{
+    const reasons=[];
+    if(d.wCh<-30)reasons.push(`周充值暴跌${d.wCh}%`);else if(d.wCh<-15)reasons.push(`周充值下滑${d.wCh}%`);
+    if(d.rechargeDays7<=1)reasons.push(`仅充值${d.rechargeDays7}天/7`);
+    if(d.daysSince>=7)reasons.push(`${d.daysSince}天未充值`);
+    if(d.giftCnt<=1)reasons.push(`仅送${d.giftCnt}个主播`);
+    if(d.wCur===0&&d.wPrev===0)reasons.push("连续2周零充值");
+    if(d.hasLinked){const ms=d.top3.filter(t=>t.inTop50);reasons.push(`关联主播: ${ms.map(m=>m.name).join(",")}`)}
+    ch+=`<div class="alert-card alert-critical"><div class="alert-icon" style="background:rgba(239,68,68,0.1);color:#ef4444">🔴</div><div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:700;font-size:13px">${d.name}</span>${riskBadge(d.risk,d.riskLevel)}</div><div style="font-size:11px;color:#94a3b8;margin-top:3px">${TC[d.tier].l} · 总充值 ${fmt(d.total)} · W5 ${fmt(d.wCur)}</div><div style="font-size:11px;color:#ef4444;margin-top:4px;font-weight:600">⚠ ${reasons.join(" · ")}</div></div></div>`;
+  });
+  ch+='</div>';document.getElementById("criticalAlerts").innerHTML=ch;
+
+  const warning=D.filter(d=>d.riskLevel==="关注").sort((a,b)=>b.risk-a.risk).slice(0,12);
+  let wh=`<div class="chart-title">🟡 关注预警 (${warning.length}人)</div><div class="chart-sub">趋势放缓需运营介入</div><div style="margin-top:8px;max-height:400px;overflow-y:auto">`;
+  warning.forEach(d=>{
+    const signs=[];
+    if(d.wCh<0)signs.push(`周${d.wCh}%`);
+    if(d.rechargeDays7<=3)signs.push(`充值${d.rechargeDays7}天`);
+    if(d.giftCnt<=3)signs.push(`送礼${d.giftCnt}主播`);
+    if(d.daysSince>=3)signs.push(`${d.daysSince}天未充`);
+    wh+=`<div class="alert-card alert-warning"><div class="alert-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b">🟡</div><div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;font-size:13px">${d.name}</span>${riskBadge(d.risk,d.riskLevel)}</div><div style="font-size:11px;color:#94a3b8;margin-top:3px">${TC[d.tier].l} · W5 ${fmt(d.wCur)} · ${signs.join(" · ")}</div></div></div>`;
+  });
+  wh+='</div>';document.getElementById("warningAlerts").innerHTML=wh;
+
+  const dormant=D.filter(d=>d.daysSince>=5).sort((a,b)=>b.daysSince-a.daysSince);
+  let dh=`<div class="chart-title">💤 沉睡用户 · ≥5天未充值 (${dormant.length}人)</div><div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">`;
+  dormant.forEach(d=>{
+    dh+=`<div class="alert-card alert-dormant"><div class="alert-icon" style="background:rgba(139,92,246,0.1);color:#a855f7">💤</div><div><div style="font-weight:600;font-size:13px">${d.name} <span style="font-size:11px;color:#a855f7">${d.daysSince}天</span></div><div style="font-size:11px;color:#94a3b8">${TC[d.tier].l} · 总充值 ${fmt(d.total)}</div></div></div>`;
+  });
+  dh+='</div>';document.getElementById("dormantAlerts").innerHTML=dh;
+}
+
+function renderHealth(){
+  const TC2={realtime:{l:"实时型",c:"#3b82f6",bg:"rgba(59,130,246,0.08)",desc:"高频充值，充消同步，边看边充边送",monitor:"连续无充值天数"},hoarding:{l:"囤币型",c:"#a855f7",bg:"rgba(168,85,247,0.08)",desc:"大额低频充值，持续消费，充值间隔长",monitor:"充值间隔偏离率"},impulse:{l:"脉冲型",c:"#f59e0b",bg:"rgba(245,158,11,0.08)",desc:"不规律爆发，单次高额，间歇沉寂",monitor:"距上次活跃天数"},dormant:{l:"沉默型",c:"#64748b",bg:"rgba(100,116,139,0.08)",desc:"近期无任何充值和消费活动",monitor:"流失召回"}};
+  const HC={healthy:{l:"健康",c:"#10b981",bg:"rgba(16,185,129,0.08)",ic:"💚"},ok:{l:"正常",c:"#3b82f6",bg:"rgba(59,130,246,0.08)",ic:"💙"},warn:{l:"关注",c:"#f59e0b",bg:"rgba(245,158,11,0.08)",ic:"🟡"},danger:{l:"危险",c:"#ef4444",bg:"rgba(239,68,68,0.08)",ic:"🔴"},lost:{l:"已流失",c:"#64748b",bg:"rgba(100,116,139,0.08)",ic:"⚫"}};
+
+  // Summary cards
+  const types={realtime:0,hoarding:0,impulse:0,dormant:0};
+  const health={healthy:0,ok:0,warn:0,danger:0,lost:0};
+  D.forEach(d=>{types[d.whaleTypeKey]++;health[d.healthKey]++;});
+  let sc='';
+  Object.entries(types).forEach(([k,v])=>{const t=TC2[k];sc+=`<div class="chart-card" style="flex:1;min-width:160px;border-left:3px solid ${t.c}"><div style="font-size:11px;color:#94a3b8">${t.l}</div><div style="font-size:28px;font-weight:700;color:${t.c};margin:4px 0">${v}<span style="font-size:13px;color:#64748b">人</span></div><div style="font-size:10px;color:#64748b">${t.desc.slice(0,12)}…</div></div>`;});
+  document.getElementById("healthSummaryCards").innerHTML=sc;
+
+  // Type distribution pie
+  destroyC("typeDistChart");
+  charts.typeDistChart=new Chart(document.getElementById("typeDistChart"),{type:"doughnut",data:{labels:Object.values(TC2).map(t=>t.l),datasets:[{data:Object.keys(TC2).map(k=>types[k]),backgroundColor:Object.values(TC2).map(t=>t.c),borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#94a3b8",font:{size:12},padding:12}}}}});
+
+  // Health distribution bar
+  destroyC("healthDistChart");
+  const hKeys=["healthy","ok","warn","danger","lost"];
+  charts.healthDistChart=new Chart(document.getElementById("healthDistChart"),{type:"bar",data:{labels:hKeys.map(k=>HC[k].l),datasets:[{data:hKeys.map(k=>health[k]),backgroundColor:hKeys.map(k=>HC[k].c),borderWidth:0,borderRadius:4}]},options:{responsive:true,indexAxis:"y",plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#94a3b8"},grid:{color:"rgba(255,255,255,0.04)"}},y:{ticks:{color:"#e2e8f0",font:{size:12}},grid:{display:false}}}}});
+
+  // Detail table grouped by type
+  const typeOrder=["realtime","hoarding","impulse","dormant"];
+  let h='<div class="chart-title">🩺 全部大R健康档案</div><div style="font-size:11px;color:#64748b;margin:4px 0 12px">按行为分型分组 · 每种类型使用不同健康基线评估</div>';
+
+  typeOrder.forEach(tk=>{
+    const group=D.filter(d=>d.whaleTypeKey===tk).sort((a,b)=>{
+      const ho={healthy:0,ok:1,warn:2,danger:3,lost:4};
+      return(ho[a.healthKey]||0)-(ho[b.healthKey]||0)||b.wCur-a.wCur;
+    });
+    if(!group.length)return;
+    const ti=TC2[tk];
+    h+=`<div style="margin-bottom:20px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 12px;background:${ti.bg};border-radius:8px;border-left:3px solid ${ti.c}"><span style="font-weight:700;color:${ti.c};font-size:14px">${ti.l}</span><span style="color:#94a3b8;font-size:12px">${group.length}人 · ${ti.desc}</span><span style="margin-left:auto;font-size:11px;color:#64748b">核心监控: ${ti.monitor}</span></div>`;
+    h+=`<div style="overflow-x:auto"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="background:rgba(255,255,255,0.03)"><th style="text-align:left;padding:6px 8px;color:#94a3b8;font-weight:600;width:140px">用户名</th><th style="text-align:center;padding:6px;color:#94a3b8;font-weight:600;width:70px">健康</th><th style="text-align:center;padding:6px;color:#94a3b8;font-weight:600;width:60px">等级</th><th style="text-align:right;padding:6px;color:#94a3b8;font-weight:600;width:80px">W5充值</th><th style="text-align:center;padding:6px;color:#94a3b8;font-weight:600;width:50px">充天</th><th style="text-align:center;padding:6px;color:#94a3b8;font-weight:600;width:50px">看天</th><th style="text-align:center;padding:6px;color:#94a3b8;font-weight:600;width:55px">距上次</th><th style="text-align:left;padding:6px;color:#94a3b8;font-weight:600">诊断详情</th></tr></thead><tbody>`;
+    group.forEach(d=>{
+      const hc=HC[d.healthKey];
+      h+=`<tr style="border-bottom:1px solid rgba(255,255,255,0.04)"><td style="padding:6px 8px;font-weight:600;color:#e2e8f0">${d.name}</td><td style="text-align:center"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${hc.bg};color:${hc.c}">${hc.ic} ${hc.l}</span></td><td style="text-align:center;color:${ti.c};font-weight:600;font-size:11px">${d.tier}</td><td style="text-align:right;font-family:'JetBrains Mono',monospace;font-weight:600;color:${d.wCur>0?"#eab308":"#475569"}">${fmt(d.wCur)}</td><td style="text-align:center;font-family:'JetBrains Mono',monospace;color:${d.rechDays>=4?"#10b981":d.rechDays>=2?"#f59e0b":"#ef4444"}">${d.rechDays}/7</td><td style="text-align:center;font-family:'JetBrains Mono',monospace;color:${d.watchDays>=4?"#06b6d4":d.watchDays>=2?"#f59e0b":"#64748b"}">${d.watchDays}/7</td><td style="text-align:center;font-family:'JetBrains Mono',monospace;color:${d.daysSince<=3?"#10b981":d.daysSince<=7?"#f59e0b":"#ef4444"}">${d.daysSince}天</td><td style="padding:6px;font-size:11px;color:#94a3b8">${d.healthDetail}</td></tr>`;
+    });
+    h+=`</tbody></table></div></div>`;
+  });
+
+  document.getElementById("healthDetailCard").innerHTML=h;
+}
+
+// ══════ EVENTS ══════
+document.querySelectorAll(".nav-btn").forEach(b=>{b.addEventListener("click",()=>{
+  document.querySelectorAll(".nav-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");
+  tab=b.dataset.tab;document.querySelectorAll(".tab-content").forEach(t=>t.classList.remove("active"));
+  document.getElementById("tab-"+tab).classList.add("active");
+  if(tab==="trend")renderTrend();
+  if(tab==="behavior")renderBehavior();
+  if(tab==="alert")renderAlert();
+  if(tab==="health")renderHealth();
+});});
+document.getElementById("tierGroup").addEventListener("click",e=>{if(e.target.dataset.tier!==undefined){tierF=e.target.dataset.tier;renderTiers();renderTable();}});
+document.getElementById("searchInput").addEventListener("input",e=>{search=e.target.value;renderTable();});
+document.getElementById("tableHead").addEventListener("click",e=>{const th=e.target.closest("th");if(!th||!th.dataset.sort||!th.classList.contains("sortable"))return;const k=th.dataset.sort;if(sortKey===k)sortD=sortD==="desc"?"asc":"desc";else{sortKey=k;sortD="desc";}renderTable();});
+document.getElementById("tableBody").addEventListener("click",e=>{const btn=e.target.closest(".compare-btn");if(!btn)return;const n=btn.dataset.cmp;if(compared.has(n))compared.delete(n);else if(compared.size<7)compared.add(n);updateCmp();renderTable();});
+document.getElementById("clearCompare").addEventListener("click",()=>{compared.clear();updateCmp();renderTable();});
+function updateCmp(){document.getElementById("compareCount").textContent=compared.size;document.getElementById("clearCompare").style.display=compared.size>0?"block":"none";}
+
+renderStats();renderTiers();renderTable();
+</script></body></html>
