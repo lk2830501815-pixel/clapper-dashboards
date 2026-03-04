@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Clapper Top主播 Message分析看板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;line-height:1.5}
+.header{background:linear-gradient(135deg,#1e293b,#0f172a);border-bottom:1px solid rgba(148,163,184,0.1);padding:20px 24px}
+.header h1{font-size:22px;color:#f1f5f9;display:flex;align-items:center;gap:10px}
+.header h1 span{color:#f59e0b}
+.header .sub{font-size:13px;color:#64748b;margin-top:4px}
+.summary{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;padding:16px 24px;border-bottom:1px solid rgba(148,163,184,0.06)}
+@media(max-width:768px){.summary{grid-template-columns:repeat(3,1fr)}}
+.sc{background:rgba(255,255,255,0.03);border:1px solid rgba(148,163,184,0.08);border-radius:10px;padding:14px 16px}
+.sc .val{font-size:22px;font-weight:700;color:#f1f5f9}
+.sc .label{font-size:11px;color:#64748b;margin-top:2px}
+.sc.up .val{color:#10b981}.sc.down .val{color:#ef4444}.sc.warn .val{color:#f59e0b}
+.tabs{display:flex;gap:4px;padding:12px 24px;border-bottom:1px solid rgba(148,163,184,0.06);overflow-x:auto}
+.tab{padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;color:#94a3b8;border:1px solid transparent;white-space:nowrap;transition:all 0.2s}
+.tab:hover{background:rgba(255,255,255,0.04)}
+.tab.active{background:rgba(245,158,11,0.1);color:#fbbf24;border-color:rgba(245,158,11,0.2)}
+.content{padding:16px 24px}
+.panel{display:none}.panel.active{display:block}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:900px){.chart-row{grid-template-columns:1fr}}
+.chart-box{background:rgba(255,255,255,0.02);border:1px solid rgba(148,163,184,0.08);border-radius:12px;padding:16px}
+.chart-box h3{font-size:14px;color:#94a3b8;margin-bottom:12px}
+.chart-box canvas{max-height:280px}
+.chart-full{grid-column:1/-1}
+.section-title{font-size:13px;font-weight:700;color:#94a3b8;margin:16px 0 10px;text-transform:uppercase;letter-spacing:0.5px}
+/* Trend table */
+.trend-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.trend-table th{background:rgba(255,255,255,0.04);padding:10px 12px;text-align:left;color:#94a3b8;font-weight:600;border-bottom:1px solid rgba(148,163,184,0.1);position:sticky;top:0}
+.trend-table td{padding:10px 12px;border-bottom:1px solid rgba(148,163,184,0.04);color:#cbd5e1}
+.trend-table tr:hover td{background:rgba(255,255,255,0.02)}
+.trend-table .name{font-weight:600;color:#f1f5f9}
+.trend-table .sid{font-size:11px;color:#64748b}
+.spark{display:inline-flex;align-items:end;gap:2px;height:24px}
+.spark-bar{width:14px;border-radius:2px 2px 0 0;transition:height 0.3s}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge-up{background:rgba(16,185,129,0.15);color:#34d399}
+.badge-down{background:rgba(239,68,68,0.12);color:#f87171}
+.badge-plat{background:rgba(139,92,246,0.15);color:#a78bfa}
+.badge-risk{background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2)}
+.badge-warn{background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.2)}
+.badge-ok{background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.2)}
+.change{font-weight:600;font-size:12px}
+.change.up{color:#10b981}.change.down{color:#ef4444}.change.flat{color:#64748b}
+/* Alert cards */
+.alert-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:768px){.alert-grid{grid-template-columns:1fr}}
+.alert-card{padding:14px;border-radius:10px;border:1px solid}
+.alert-card.red{background:rgba(239,68,68,0.06);border-color:rgba(239,68,68,0.15)}
+.alert-card.yellow{background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.15)}
+.alert-card.green{background:rgba(16,185,129,0.06);border-color:rgba(16,185,129,0.15)}
+.alert-card.purple{background:rgba(139,92,246,0.06);border-color:rgba(139,92,246,0.15)}
+.alert-card h3{font-size:14px;margin-bottom:8px}
+.alert-card.red h3{color:#f87171}
+.alert-card.yellow h3{color:#fbbf24}
+.alert-card.green h3{color:#34d399}
+.alert-card.purple h3{color:#a78bfa}
+.alert-card p{font-size:13px;color:#94a3b8;line-height:1.6}
+.findings{margin-top:16px;padding:16px;background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.12);border-radius:10px;font-size:13px;color:#94a3b8;line-height:1.8}
+.findings b{color:#e2e8f0}
+/* Streamer cards */
+.streamer-card{background:rgba(255,255,255,0.02);border:1px solid rgba(148,163,184,0.08);border-radius:12px;overflow:hidden;margin-bottom:12px}
+.streamer-head{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid rgba(148,163,184,0.06);cursor:pointer}
+.streamer-head:hover{background:rgba(255,255,255,0.02)}
+.streamer-name{font-size:15px;font-weight:700;color:#f1f5f9}
+.streamer-meta{display:flex;gap:12px;font-size:12px;color:#64748b;margin-top:3px}
+.streamer-badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.streamer-body{padding:16px 20px;display:none}
+.streamer-body.open{display:block}
+.risk-list{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.risk-item{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.1);border-radius:8px;font-size:13px;color:#fca5a5}
+.risk-item::before{content:'⚠';flex-shrink:0}
+.cat-bars{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.cat-bar{display:flex;align-items:center;gap:8px;font-size:12px}
+.cat-label{width:100px;text-align:right;color:#94a3b8;flex-shrink:0}
+.cat-track{flex:1;height:18px;background:rgba(255,255,255,0.03);border-radius:4px;overflow:hidden}
+.cat-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:10px;color:#fff;font-weight:600;min-width:20px}
+.cat-count{font-size:11px;color:#64748b;width:30px;text-align:right;flex-shrink:0}
+.msg-list{display:flex;flex-direction:column;gap:6px}
+.msg-item{padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(148,163,184,0.06);border-radius:8px;font-size:13px}
+.msg-time{font-size:11px;color:#64748b;margin-bottom:3px}
+.msg-text{color:#cbd5e1;word-break:break-word}
+.msg-tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;margin-left:6px;font-weight:600}
+.tag-platform{background:rgba(139,92,246,0.2);color:#c4b5fd}
+.tag-pricing{background:rgba(245,158,11,0.2);color:#fcd34d}
+.tag-clapper{background:rgba(239,68,68,0.2);color:#fca5a5}
+.tag-dnd{background:rgba(6,182,212,0.2);color:#67e8f9}
+.tag-conflict{background:rgba(249,115,22,0.2);color:#fdba74}
+.platform-card{background:rgba(255,255,255,0.02);border:1px solid rgba(148,163,184,0.08);border-radius:10px;padding:14px}
+.platform-name{font-size:14px;font-weight:700;color:#a78bfa;margin-bottom:8px}
+.expand-icon{color:#64748b;font-size:18px;transition:transform 0.2s}
+.expand-icon.open{transform:rotate(180deg)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>💬 Clapper Top主播 <span>Message分析看板</span></h1>
+  <div class="sub">数据周期: W1(01.26) → W5(03.03) · 5周完整数据 · 10位主播 · 14,001条原始消息</div>
+</div>
+
+<div class="summary" id="summaryBar"></div>
+
+<div class="tabs" id="tabBar">
+  <div class="tab active" data-tab="trend">📈 趋势总览</div>
+  <div class="tab" data-tab="detail">👤 主播排名</div>
+  <div class="tab" data-tab="platform">🔗 平台导流</div>
+  <div class="tab" data-tab="alerts">🚨 风险演变</div>
+  <div class="tab" data-tab="weekly">💬 W5本周详情</div>
+</div>
+
+<div class="content">
+  <div class="panel active" id="panel-trend"></div>
+  <div class="panel" id="panel-detail"></div>
+  <div class="panel" id="panel-platform"></div>
+  <div class="panel" id="panel-alerts"></div>
+  <div class="panel" id="panel-weekly"></div>
+</div>
+
+<script>
+const WEEKS=['W1','W2','W3','W4','W5'];
+const WEEK_SHORT=['W1','W2','W3','W4','W5'];
+
+const S={
+  '21771002':{name:'Twiggy_b00bies',color:'#f87171'},
+  '8677440':{name:'QueenAleksaGrey',color:'#fbbf24'},
+  '8786764':{name:'Kaitlynn_Kate',color:'#a78bfa'},
+  '8349079':{name:'Ball_drainer_katie',color:'#34d399'},
+  '4903941':{name:'Live_Your_Best_Life',color:'#60a5fa'},
+  '5406624':{name:'YourDreamGirlll',color:'#f472b6'},
+  '2809152':{name:'Bumblebeebri',color:'#fb923c'},
+  '4967547':{name:'Curviecutie',color:'#2dd4bf'},
+  '4865222':{name:'L1Z4B31',color:'#818cf8'},
+  '5021625':{name:'Alisondaddy',color:'#94a3b8'},
+};
+
+const D={
+  W1:{
+    '21771002':{v:263,t:313,c:33,cats:{'日常交流':239,'用户关系维护':12,'内容交付':7,'外部平台导流':3,'定价/销售':1,'投诉/冲突':1},plats:['Snapchat']},
+    '8677440':{v:64,t:129,c:62,cats:{'日常交流':37,'用户关系维护':14,'外部平台导流':5,'内容交付':5,'定价/销售':2,'投诉/冲突':1},plats:['Snapchat','Dropbox']},
+    '8786764':{v:408,t:495,c:92,cats:{'日常交流':337,'用户关系维护':30,'定价/销售':16,'内容交付':8,'投诉/冲突':6,'外部平台导流':5,'平台问题':4,'DND相关':2},plats:['Snapchat','PayPal']},
+    '8349079':{v:112,t:139,c:49,cats:{'日常交流':72,'用户关系维护':19,'内容交付':11,'定价/销售':6,'外部平台导流':2,'DND相关':2},plats:['Snapchat']},
+    '4903941':{v:36,t:39,c:11,cats:{'日常交流':27,'用户关系维护':4,'定价/销售':2,'外部平台导流':1,'投诉/冲突':1,'内容交付':1},plats:['Snapchat']},
+    '2809152':{v:17,t:19,c:4,cats:{'日常交流':13,'用户关系维护':1,'内容交付':1,'定价/销售':1,'平台问题':1},plats:[]},
+    '5021625':{v:9,t:10,c:2,cats:{'日常交流':8,'用户关系维护':1},plats:[]},
+    '4865222':{v:1,t:3,c:3,cats:{'用户关系维护':1},plats:[]},
+    '5406624':{v:1,t:1,c:1,cats:{'用户关系维护':1},plats:[]},
+  },
+  W2:{
+    '21771002':{v:392,t:451,c:34,cats:{'日常交流':357,'用户关系维护':19,'内容交付':9,'定价/销售':3,'投诉/冲突':2,'外部平台导流':2},plats:['Snapchat']},
+    '8677440':{v:244,t:316,c:103,cats:{'日常交流':183,'用户关系维护':22,'内容交付':12,'定价/销售':15,'外部平台导流':6,'平台问题':3,'投诉/冲突':2,'DND相关':1},plats:['Snapchat','Fambase']},
+    '8786764':{v:301,t:374,c:70,cats:{'日常交流':243,'用户关系维护':33,'定价/销售':14,'内容交付':4,'投诉/冲突':3,'外部平台导流':2,'平台问题':1,'DND相关':1},plats:['Snapchat']},
+    '8349079':{v:189,t:210,c:43,cats:{'日常交流':134,'内容交付':29,'用户关系维护':14,'平台问题':4,'定价/销售':3,'投诉/冲突':2,'DND相关':2,'外部平台导流':1},plats:['Snapchat']},
+    '4865222':{v:108,t:111,c:63,cats:{'日常交流':55,'用户关系维护':17,'定价/销售':12,'外部平台导流':9,'内容交付':8,'平台问题':4,'投诉/冲突':2,'DND相关':1},plats:['Snapchat','PayPal']},
+    '4903941':{v:27,t:29,c:8,cats:{'日常交流':17,'用户关系维护':6,'投诉/冲突':2,'定价/销售':1,'内容交付':1},plats:['Dropbox']},
+    '2809152':{v:10,t:11,c:4,cats:{'日常交流':6,'用户关系维护':2,'DND相关':1,'内容交付':1},plats:[]},
+    '5406624':{v:3,t:4,c:1,cats:{'用户关系维护':3},plats:[]},
+    '5021625':{v:2,t:2,c:2,cats:{'用户关系维护':2},plats:[]},
+  },
+  W3:{
+    '21771002':{v:73,t:88,c:13,cats:{'日常交流':65,'用户关系维护':3,'外部平台导流':3,'定价/销售':1,'投诉/冲突':1},plats:['Snapchat']},
+    '8677440':{v:12,t:22,c:9,cats:{'日常交流':7,'内容交付':3,'定价/销售':2},plats:[]},
+    '8786764':{v:18,t:26,c:8,cats:{'日常交流':10,'定价/销售':6,'用户关系维护':2},plats:[]},
+    '8349079':{v:21,t:26,c:12,cats:{'日常交流':16,'用户关系维护':3,'外部平台导流':1,'定价/销售':1},plats:['Snapchat']},
+    '4865222':{v:33,t:39,c:16,cats:{'日常交流':22,'定价/销售':5,'内容交付':4,'用户关系维护':2},plats:[]},
+    '4903941':{v:2,t:2,c:2,cats:{'用户关系维护':1,'日常交流':1},plats:[]},
+    '2809152':{v:6,t:8,c:2,cats:{'日常交流':5,'用户关系维护':1},plats:[]},
+    '4967547':{v:4,t:5,c:1,cats:{'日常交流':3,'内容交付':1},plats:[]},
+    '5406624':{v:3,t:3,c:1,cats:{'用户关系维护':3},plats:[]},
+  },
+  W4:{
+    '21771002':{v:276,t:329,c:45,cats:{'日常交流':254,'用户关系维护':9,'内容交付':6,'定价/销售':4,'投诉/冲突':3},plats:[]},
+    '8677440':{v:69,t:109,c:45,cats:{'日常交流':35,'外部平台导流':16,'内容交付':5,'定价/销售':5,'用户关系维护':5,'投诉/冲突':2,'平台问题':1},plats:['Fambase','Snapchat']},
+    '8786764':{v:236,t:276,c:77,cats:{'日常交流':180,'用户关系维护':27,'内容交付':13,'定价/销售':10,'DND相关':2,'平台问题':2,'投诉/冲突':2},plats:[]},
+    '8349079':{v:222,t:251,c:53,cats:{'日常交流':168,'内容交付':25,'用户关系维护':12,'外部平台导流':8,'DND相关':5,'定价/销售':3,'平台问题':1},plats:['PayPal','OnlyFans','Fambase']},
+    '4865222':{v:190,t:209,c:85,cats:{'日常交流':113,'定价/销售':29,'内容交付':20,'用户关系维护':18,'外部平台导流':6,'DND相关':4},plats:['PayPal','Snapchat']},
+    '4903941':{v:51,t:59,c:16,cats:{'日常交流':32,'用户关系维护':7,'定价/销售':7,'内容交付':3,'外部平台导流':1,'平台问题':1},plats:[]},
+    '5406624':{v:25,t:27,c:8,cats:{'日常交流':16,'用户关系维护':8,'内容交付':1},plats:[]},
+    '5021625':{v:6,t:7,c:3,cats:{'日常交流':3,'外部平台导流':1,'用户关系维护':2},plats:['Snapchat']},
+    '2809152':{v:6,t:9,c:2,cats:{'日常交流':4,'投诉/冲突':1,'平台问题':1},plats:[]},
+    '4967547':{v:5,t:6,c:1,cats:{'日常交流':4,'内容交付':1},plats:[]},
+  },
+  W5:{
+    '21771002':{v:611,t:706,c:49,cats:{'日常交流':547,'用户关系维护':22,'投诉/冲突':19,'内容交付':11,'外部平台导流':5,'平台问题':5,'定价/销售':1,'DND相关':1},plats:['Snapchat']},
+    '8677440':{v:515,t:663,c:230,cats:{'日常交流':386,'内容交付':49,'定价/销售':30,'用户关系维护':19,'外部平台导流':15,'投诉/冲突':9,'DND相关':4,'平台问题':3},plats:['Fambase','Dropbox','Snapchat']},
+    '8786764':{v:512,t:589,c:98,cats:{'日常交流':436,'用户关系维护':44,'定价/销售':15,'内容交付':10,'投诉/冲突':6,'平台问题':1},plats:[]},
+    '8349079':{v:154,t:175,c:50,cats:{'日常交流':112,'用户关系维护':14,'内容交付':12,'外部平台导流':7,'定价/销售':5,'投诉/冲突':2,'DND相关':1,'平台问题':1},plats:['PayPal','Fambase','Snapchat']},
+    '4903941':{v:28,t:37,c:21,cats:{'日常交流':19,'内容交付':2,'平台问题':2,'用户关系维护':2,'外部平台导流':1,'DND相关':1,'定价/销售':1},plats:[]},
+    '5406624':{v:6,t:7,c:5,cats:{'日常交流':3,'用户关系维护':2,'定价/销售':1},plats:[]},
+    '2809152':{v:3,t:5,c:3,cats:{'用户关系维护':1,'日常交流':2},plats:[]},
+    '4967547':{v:3,t:5,c:1,cats:{'外部平台导流':1,'日常交流':1,'内容交付':1},plats:['OnlyFans']},
+    '4865222':{v:0,t:3,c:2,cats:{},plats:[]},
+  }
+};
+
+// W5 per-streamer detail data
+const W5DETAIL=[
+  {
+    sid:'21771002',msgs:610,convs:48,
+    platforms:['Snapchat'],
+    risks:['向用户推广Snapchat','对Clapper消息系统不满(重复发送bug)','与某付费用户存在纠纷——该用户大额打赏后以此施压'],
+    summary:'最活跃的主播，与48个用户有深度互动。主要是日常聊天和关系维护。注意：1)提到某大额tipper"吓跑了其他tippers"并"以打赏施压"，存在用户关系冲突；2)反映Clapper消息重复发送bug；3)有少量Snapchat导流行为。',
+    keyMsgs:[
+      {t:'02.23 19:58',txt:'Coins cost you more but I only get $6 for that which i appreciate so much! But those are my premium videos so they go for more',tag:'pricing'},
+      {t:'03.01 20:18',txt:'Not to mention, he has scared multiple of my tippers off just because of how he is.',tag:'conflict'},
+      {t:'03.01 20:18',txt:"Ever since he's been tipping bigger, he's been holding it against me and that's so fucked up. Because I've never asked, begged or nothing",tag:'conflict'},
+      {t:'03.03 00:19',txt:"Bro, I don't know why clapper's been tweaking lately, but it will send the same thing like six times",tag:'clapper'},
+      {t:'02.27 12:40',txt:"But I understand she has severe mental health issues and should be getting help and the help's not on clapper",tag:'clapper'},
+    ]
+  },
+  {
+    sid:'8677440',msgs:515,convs:185,
+    platforms:['Fambase','Snapchat','Dropbox'],
+    risks:['大量向用户推广Fambase、Snapchat、Dropbox','Clapper直播曾被中断(cut off)','通过Dropbox链接绕过平台发送内容','使用第二个Clapper账号进行DND'],
+    summary:'消息量第二但对话数最多(185个)，说明在大量群发销售内容。核心行为：1)积极推广Fambase并引导用户迁移；2)通过Dropbox链接发送付费内容绕过平台；3)直播曾被Clapper中断；4)提到用第二个Clapper账号做DND。收入变现意识极强但对平台忠诚度低。',
+    keyMsgs:[
+      {t:'02.23 18:01',txt:'my stream was cut off by clapper',tag:'clapper'},
+      {t:'02.25 09:54',txt:'lambo is all my gallery + snap',tag:'platform'},
+      {t:'02.25 11:21',txt:'if u want come back for more i have over 10k vids',tag:'pricing'},
+      {t:'02.27 08:11',txt:'i call u private dnd from second clapper account if u will agree on lovely train gift',tag:'dnd'},
+      {t:'02.28 08:10',txt:'well clapper app dont aloud u to tip that',tag:'clapper'},
+      {t:'02.28 08:12',txt:'clapper gift cost 300$',tag:'clapper'},
+      {t:'03.03 11:10',txt:'today i also offer 1000x vids extra for dream dress if you interested',tag:'pricing'},
+    ]
+  },
+  {
+    sid:'8786764',msgs:512,convs:94,
+    platforms:['Snapchat'],
+    risks:['向用户推广Snapchat','部分内容涉及法语，需注意法语圈用户运营'],
+    summary:'法语主播，与94个用户互动。大量日常交流和关系维护，销售行为不多。定价低(5$/vid)。部分消息为法语。对平台无明显不满。',
+    keyMsgs:[
+      {t:'02.23 00:49',txt:'yes 5$ each or moneygun on live for 5 vids',tag:'pricing'},
+      {t:'02.23 02:40',txt:'anyway you can tip in dm still for vids😘',tag:'pricing'},
+      {t:'03.02 10:41',txt:"Je vous écris ce message pour vous remercier, ma mère et moi, de votre générosité et d'avoir embelli notre journée!",tag:''},
+    ]
+  },
+  {
+    sid:'8349079',msgs:154,convs:42,
+    platforms:['Fambase','Snapchat','PayPal'],
+    risks:['向用户推广Fambase、Snapchat和PayPal','通过PayPal绕过平台收款','Clapper消息系统问题导致用户投诉','存在退款纠纷'],
+    summary:'活跃度中等，42个用户互动。核心风险：1)明确使用PayPal作为替代收款渠道；2)提到Clapper消息发送失败导致用户不满；3)有退款纠纷记录("No refunds")；4)定价明确($50 DM tip / $65 camera roll / $30 package)。',
+    keyMsgs:[
+      {t:'02.23 17:30',txt:"Clapper wouldn't? I have PayPal",tag:'platform'},
+      {t:'02.23 19:58',txt:'Coins cost you more but i only get $6 for that which i appreciate so much! But those are my premium videos so they go for more',tag:'pricing'},
+      {t:'02.23 19:58',txt:'But clapper was not sending your messages',tag:'clapper'},
+      {t:'02.23 22:17',txt:"No refunds cause i offered to do it on snap and i have been live so couldn't respond",tag:'conflict'},
+      {t:'02.24 04:49',txt:"I'm giving you extra time free already please do 50",tag:'pricing'},
+    ]
+  },
+  {
+    sid:'4903941',msgs:28,convs:16,
+    platforms:['Fambase'],
+    risks:['教导其他用户如何使用Fambase跨平台推广'],
+    summary:'消息量少但质量高。关键发现：正在教用户如何在Clapper和Fambase之间做跨平台推广(dual stream + cross promote)。提到DND机制和Fambase对比。可能是有经验的老主播在帮助新人。',
+    keyMsgs:[
+      {t:'03.02 19:15',txt:"So when you go on fam, it's no different dnd situation on Clapper",tag:'platform'},
+      {t:'03.02 19:16',txt:"Basically, just click a link in your profile on the top right of your group and put it in your Clapper bio. Then you go on Clapper either in a PK or in a dual stream",tag:'platform'},
+      {t:'03.02 19:16',txt:'You do that you can cross promote the links for both persons rooms at the same time and make money on fam where there are no restrictions',tag:'platform'},
+    ]
+  },
+  {
+    sid:'5406624',msgs:6,convs:5,
+    platforms:[],risks:[],
+    summary:'消息极少(6条)，与核心用户"Farmer"关系密切。定价明确(10 vids $35)。无外部平台导流，对Clapper忠诚度较高。',
+    keyMsgs:[{t:'03.01 12:04',txt:'Hi yes babe 10 vids 1 min each 35$ dm tip✅',tag:'pricing'}]
+  },
+  {
+    sid:'2809152',msgs:3,convs:2,
+    platforms:[],
+    risks:['几乎无有效消息——97%都是重复的欢迎语模板'],
+    summary:'有效消息仅3条(原始145条中97%是重复欢迎语)。该主播几乎只使用自动群发功能，无真正的用户互动。',
+    keyMsgs:[]
+  },
+  {
+    sid:'4967547',msgs:3,convs:1,
+    platforms:['OnlyFans'],
+    risks:['明确引导用户转向OnlyFans','Clapper上几乎不做私信运营'],
+    summary:'有效消息仅3条，全部是引导用户去OnlyFans("Sub to of", "IM ON OF LIVE RIGHT NOW")。该主播把Clapper纯粹作为引流渠道，核心运营在OnlyFans。',
+    keyMsgs:[
+      {t:'02.25 12:08',txt:'Sub to my of CLICK LINK IN BIO',tag:'platform'},
+      {t:'02.25 12:08',txt:'IM ON OF LIVE RIGHT NOW',tag:'platform'},
+    ]
+  },
+];
+
+const CC={'日常交流':'#64748b','用户关系维护':'#10b981','内容交付':'#3b82f6','定价/销售':'#f59e0b','外部平台导流':'#8b5cf6','平台问题':'#ef4444','DND相关':'#06b6d4','投诉/冲突':'#f97316'};
+const TL={'platform':'外部平台','pricing':'定价','clapper':'平台问题','dnd':'DND','conflict':'纠纷'};
+const TC={'platform':'tag-platform','pricing':'tag-pricing','clapper':'tag-clapper','dnd':'tag-dnd','conflict':'tag-conflict'};
+
+function gv(sid,w){return(D[w]&&D[w][sid])?D[w][sid].v:0}
+function gc(sid,w){return(D[w]&&D[w][sid])?D[w][sid].c:0}
+function gcat(sid,w,cat){return(D[w]&&D[w][sid]&&D[w][sid].cats[cat])?D[w][sid].cats[cat]:0}
+function gp(sid,w){return(D[w]&&D[w][sid])?D[w][sid].plats:[]}
+function pct(a,b){if(a===0)return b>0?999:0;return Math.round((b-a)/a*100)}
+function chg(p){if(p>30)return{c:'up',t:'↑'+p+'%'};if(p>5)return{c:'up',t:'↗'+p+'%'};if(p>-5)return{c:'flat',t:'→'};if(p>-30)return{c:'down',t:'↘'+Math.abs(p)+'%'};return{c:'down',t:'↓'+Math.abs(p)+'%'}}
+
+// ═══ Summary ═══
+function renderSummary(){
+  const w4T=Object.values(D.W4||{}).reduce((s,d)=>s+d.v,0);
+  const w5T=Object.values(D.W5||{}).reduce((s,d)=>s+d.v,0);
+  const p=pct(w4T,w5T);
+  const w5P=Object.entries(D.W5||{}).filter(([_,d])=>d.plats.length>0).length;
+  const w5C=Object.values(D.W5||{}).reduce((s,d)=>s+(d.cats['投诉/冲突']||0),0);
+  const w4C=Object.values(D.W4||{}).reduce((s,d)=>s+(d.cats['投诉/冲突']||0),0);
+  const w5Redir=Object.values(D.W5||{}).reduce((s,d)=>s+(d.cats['外部平台导流']||0),0);
+  document.getElementById('summaryBar').innerHTML=`
+    <div class="sc"><div class="val">14,001</div><div class="label">总消息量(5周)</div></div>
+    <div class="sc ${p>0?'up':'down'}"><div class="val">${w5T} <span style="font-size:14px">${p>0?'↑':'↓'}${Math.abs(p)}%</span></div><div class="label">W5有效消息 vs W4</div></div>
+    <div class="sc"><div class="val">10</div><div class="label">监控主播</div></div>
+    <div class="sc warn"><div class="val">${w5P}/9</div><div class="label">W5有外部导流</div></div>
+    <div class="sc ${w5C>w4C?'down':'up'}"><div class="val">${w5C}</div><div class="label">W5投诉/冲突</div></div>
+    <div class="sc warn"><div class="val">${w5Redir}</div><div class="label">W5导流消息</div></div>`;
+}
+
+// ═══ Trend ═══
+function renderTrend(){
+  let html=`<div class="chart-row">
+    <div class="chart-box"><h3>📊 各主播有效消息量趋势</h3><canvas id="c1"></canvas></div>
+    <div class="chart-box"><h3>💬 各主播对话数趋势</h3><canvas id="c2"></canvas></div>
+  </div>
+  <div class="chart-row">
+    <div class="chart-box"><h3>🔗 外部平台导流消息趋势</h3><canvas id="c3"></canvas></div>
+    <div class="chart-box"><h3>⚠️ 投诉/冲突消息趋势</h3><canvas id="c4"></canvas></div>
+  </div>
+  <div class="chart-row">
+    <div class="chart-box chart-full"><h3>📂 消息内容分类构成(按周)</h3><canvas id="c5"></canvas></div>
+  </div>`;
+  document.getElementById('panel-trend').innerHTML=html;
+  const top6=['21771002','8677440','8786764','8349079','4865222','4903941'];
+  const co={responsive:true,plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}},scales:{x:{ticks:{color:'#64748b'}},y:{ticks:{color:'#64748b'},grid:{color:'rgba(148,163,184,0.06)'}}}};
+  const cos={responsive:true,plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}},scales:{x:{stacked:true,ticks:{color:'#64748b'}},y:{stacked:true,ticks:{color:'#64748b'},grid:{color:'rgba(148,163,184,0.06)'}}}};
+  new Chart(document.getElementById('c1'),{type:'line',data:{labels:WEEK_SHORT,datasets:top6.map(sid=>({label:S[sid].name,borderColor:S[sid].color,data:WEEKS.map(w=>gv(sid,w)),tension:0.3,pointRadius:4,fill:false}))},options:co});
+  new Chart(document.getElementById('c2'),{type:'line',data:{labels:WEEK_SHORT,datasets:top6.map(sid=>({label:S[sid].name,borderColor:S[sid].color,data:WEEKS.map(w=>gc(sid,w)),tension:0.3,pointRadius:4,fill:false}))},options:co});
+  new Chart(document.getElementById('c3'),{type:'bar',data:{labels:WEEK_SHORT,datasets:top6.map(sid=>({label:S[sid].name,backgroundColor:S[sid].color+'cc',data:WEEKS.map(w=>gcat(sid,w,'外部平台导流'))}))},options:cos});
+  new Chart(document.getElementById('c4'),{type:'bar',data:{labels:WEEK_SHORT,datasets:top6.map(sid=>({label:S[sid].name,backgroundColor:S[sid].color+'cc',data:WEEKS.map(w=>gcat(sid,w,'投诉/冲突'))}))},options:cos});
+  const cats=['日常交流','用户关系维护','内容交付','定价/销售','外部平台导流','投诉/冲突','平台问题','DND相关'];
+  new Chart(document.getElementById('c5'),{type:'bar',data:{labels:WEEK_SHORT,datasets:cats.map(cat=>({label:cat,backgroundColor:CC[cat]+'cc',data:WEEKS.map(w=>Object.values(D[w]||{}).reduce((s,d)=>s+(d.cats[cat]||0),0))}))},options:cos});
+}
+
+// ═══ Detail ═══
+function renderDetail(){
+  let rows='';
+  const sids=Object.keys(S).sort((a,b)=>gv(b,'W5')-gv(a,'W5'));
+  sids.forEach(sid=>{
+    const s=S[sid];
+    const vals=WEEKS.map(w=>gv(sid,w));
+    const maxV=Math.max(...vals,1);
+    const w4=gv(sid,'W4'),w5=gv(sid,'W5');
+    const p=pct(w4,w5),ch=chg(p);
+    const spark=vals.map(v=>{const h=Math.max(3,v/maxV*24);const c=v===w5?s.color:'rgba(148,163,184,0.4)';return`<div class="spark-bar" style="height:${h}px;background:${c}" title="${v}"></div>`}).join('');
+    const allP=new Set();WEEKS.forEach(w=>gp(sid,w).forEach(p=>allP.add(p)));
+    const pb=[...allP].map(p=>`<span class="badge badge-plat">${p}</span>`).join(' ');
+    rows+=`<tr>
+      <td><div class="name">${s.name}</div><div class="sid">${sid}</div></td>
+      <td><div class="spark">${spark}</div></td>
+      <td style="text-align:right">${vals[0]||'-'}</td>
+      <td style="text-align:right">${vals[1]||'-'}</td>
+      <td style="text-align:right">${vals[2]||'-'}</td>
+      <td style="text-align:right">${vals[3]||'-'}</td>
+      <td style="text-align:right;font-weight:700">${vals[4]||'-'}</td>
+      <td><span class="change ${ch.c}">${ch.t}</span></td>
+      <td>${pb||'<span style="color:#334155">—</span>'}</td>
+    </tr>`;
+  });
+  document.getElementById('panel-detail').innerHTML=`<div style="overflow-x:auto"><table class="trend-table">
+    <thead><tr><th>主播</th><th>趋势</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th><th>W5</th><th>W4→W5</th><th>外部平台</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+// ═══ Platform ═══
+function renderPlatform(){
+  const platforms=['Snapchat','Fambase','OnlyFans','PayPal','Dropbox'];
+  let html='<div class="chart-row"><div class="chart-box chart-full"><h3>各外部平台被推广次数(按周)</h3><canvas id="cp1"></canvas></div></div>';
+  html+=`<div class="section-title">各平台涉及主播变化</div>`;
+  platforms.forEach(plat=>{
+    let wd=WEEKS.map(w=>{const names=[];Object.entries(D[w]||{}).forEach(([sid,d])=>{if(d.plats.includes(plat))names.push(S[sid]?.name||sid)});return{week:w,names}});
+    if(!wd.some(d=>d.names.length>0))return;
+    html+=`<div style="margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(148,163,184,0.08);border-radius:8px">
+      <div style="font-weight:700;color:#a78bfa;margin-bottom:6px">${plat}</div>
+      <div style="display:flex;gap:16px;font-size:12px;color:#94a3b8;flex-wrap:wrap">
+        ${wd.map(d=>`<div><span style="color:#64748b">${d.week}:</span> ${d.names.length?d.names.join(', '):'<span style="color:#334155">无</span>'}</div>`).join('')}
+      </div></div>`;
+  });
+  document.getElementById('panel-platform').innerHTML=html;
+  const pc={'Snapchat':'#06b6d4','Fambase':'#8b5cf6','OnlyFans':'#ef4444','PayPal':'#f59e0b','Dropbox':'#3b82f6'};
+  new Chart(document.getElementById('cp1'),{type:'bar',data:{labels:WEEK_SHORT,datasets:platforms.map(p=>({
+    label:p,backgroundColor:(pc[p]||'#94a3b8')+'cc',
+    data:WEEKS.map(w=>{let c=0;Object.values(D[w]||{}).forEach(d=>{if(d.plats.includes(p))c+=d.cats['外部平台导流']||0});return c})
+  }))},options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}},scales:{x:{stacked:true,ticks:{color:'#64748b'}},y:{stacked:true,ticks:{color:'#64748b'},grid:{color:'rgba(148,163,184,0.06)'}}}}});
+}
+
+// ═══ Alerts ═══
+function renderAlerts(){
+  document.getElementById('panel-alerts').innerHTML=`<div class="alert-grid">
+    <div class="alert-card red">
+      <h3>🚨 QueenAleksaGrey — 导流行为持续升级</h3>
+      <p>W1: Snapchat+Dropbox(64条) → W2: 新增Fambase(244条,+281%) → W3: 低谷(12条) → W4: Fambase+Snapchat(69条) → W5: 三平台全开(515条,+647%)。5周内消息量暴涨8倍，对话数从62飙到230，说明在大规模群发销售+导流内容。W2就已经开始推Fambase，不是新行为而是持续策略。</p>
+    </div>
+    <div class="alert-card red">
+      <h3>🚨 L1Z4B31 — 从活跃到消失的完整轨迹</h3>
+      <p>W1: 1条 → W2: 108条爆发(PayPal+Snapchat导流) → W3: 33条 → W4: 190条再爆发(PayPal+Snapchat) → W5: 0条。W2和W4两次活跃高峰都伴随大量PayPal收款和外部平台导流(W2: 9条导流消息)，W5彻底归零。高度疑似已将核心用户迁移至外部平台。</p>
+    </div>
+    <div class="alert-card yellow">
+      <h3>⚠️ Ball_drainer_katie — 收款渠道逐步外部化</h3>
+      <p>W1-W2: 仅Snapchat → W4: 突然新增OnlyFans+Fambase+PayPal三个平台 → W5: 延续PayPal+Fambase+Snapchat。从W2的189条降至W5的154条，活跃度略有下降但外部平台依赖在加深。PayPal直接绕过Clapper收款体系。</p>
+    </div>
+    <div class="alert-card yellow">
+      <h3>⚠️ Twiggy_b00bies — 投诉/冲突消息5周内暴增19倍</h3>
+      <p>投诉/冲突消息: W1(1) → W2(2) → W3(1) → W4(3) → W5(19)。W5暴增6倍，主要是与某大额tipper的持续纠纷以及对Clapper消息系统bug的不满。该主播消息量也在激增(W1:263→W5:611)，是最活跃的主播，如果体验持续恶化可能影响留存。</p>
+    </div>
+    <div class="alert-card purple">
+      <h3>📊 Kaitlynn_Kate — 最稳定的运营模式</h3>
+      <p>W1(408) → W2(301) → W3(18) → W4(236) → W5(512)。W3低谷后稳步回升至新高。全程无外部平台导流(W1有Snapchat后停止)，内容以日常交流和用户关系维护为主。是最健康的主播运营模式。</p>
+    </div>
+    <div class="alert-card green">
+      <h3>✅ YourDreamGirlll — 小而忠诚</h3>
+      <p>5周消息量: 1→3→3→25→6。消息虽少但始终无外部平台导流，内容以用户关系维护为主。对Clapper忠诚度最高。</p>
+    </div>
+  </div>
+  <div class="findings">
+    <div style="font-weight:700;color:#fbbf24;margin-bottom:8px">📌 5周核心趋势总结</div>
+    1. <b>外部平台导流是长期策略而非偶发行为</b>: QueenAleksaGrey从W2就开始推Fambase，L1Z4B31从W2就在用PayPal收款。这不是突然出现的行为，而是持续了5周的策略。<br><br>
+    2. <b>L1Z4B31的轨迹是"用户迁移"的教科书案例</b>: W2爆发→W3回落→W4再爆发→W5归零。两次活跃高峰都伴随PayPal导流，最终完成用户转移后彻底停止Clapper私信。<br><br>
+    3. <b>QueenAleksaGrey是最需要关注的对象</b>: 消息量5周暴涨8倍(64→515)，对话数从62飙到230，但同时是导流最严重的(三平台同时推)。她在用Clapper的流量为外部平台导流。<br><br>
+    4. <b>投诉/冲突信号在恶化</b>: 全平台投诉消息从W1的10条增至W5的36条。Twiggy_b00bies一人贡献19条(53%)。<br><br>
+    5. <b>Bumblebeebri和Alisondaddy持续不做私信运营</b>: 5周内有效消息始终在个位数，Bumblebeebri 97%是自动欢迎语。
+  </div>`;
+}
+
+// ═══ Weekly Detail ═══
+function renderWeekly(){
+  let html='';
+  W5DETAIL.forEach((d,i)=>{
+    const s=S[d.sid];if(!s)return;
+    const riskBadge=d.risks.length>=3?`<span class="badge badge-risk">高风险</span>`:d.risks.length>=1?`<span class="badge badge-warn">关注</span>`:`<span class="badge badge-ok">正常</span>`;
+    const platBadges=d.platforms.map(p=>`<span class="badge badge-plat">${p}</span>`).join('');
+    const catEntries=Object.entries(D.W5[d.sid]?.cats||{}).sort((a,b)=>b[1]-a[1]);
+    const catMax=catEntries[0]?catEntries[0][1]:1;
+    const catBars=catEntries.map(([k,v])=>`<div class="cat-bar"><div class="cat-label">${k}</div><div class="cat-track"><div class="cat-fill" style="width:${v/catMax*100}%;background:${CC[k]||'#64748b'}">${v}</div></div></div>`).join('');
+    const riskHtml=d.risks.length?`<div class="section-title">风险信号</div><div class="risk-list">${d.risks.map(r=>`<div class="risk-item">${r}</div>`).join('')}</div>`:'';
+    let msgHtml='';
+    if(d.keyMsgs.length){
+      msgHtml=`<div class="section-title">关键消息</div><div class="msg-list">${d.keyMsgs.map(m=>{
+        const tagH=m.tag?`<span class="msg-tag ${TC[m.tag]||''}">${TL[m.tag]||m.tag}</span>`:'';
+        return`<div class="msg-item"><div class="msg-time">${m.t}${tagH}</div><div class="msg-text">${m.txt}</div></div>`;
+      }).join('')}</div>`;
+    }
+    // Mini sparkline for this streamer
+    const vals=WEEKS.map(w=>gv(d.sid,w));
+    const maxV=Math.max(...vals,1);
+    const miniSpark=vals.map((v,idx)=>{const h=Math.max(3,v/maxV*20);const c=idx===4?s.color:'rgba(148,163,184,0.3)';return`<div class="spark-bar" style="height:${h}px;background:${c}" title="W${idx<2?idx+1:idx+1}: ${v}"></div>`}).join('');
+
+    html+=`<div class="streamer-card">
+      <div class="streamer-head" onclick="toggleCard(${i})">
+        <div>
+          <div class="streamer-name">${s.name} <span style="font-size:12px;color:#64748b;font-weight:400">(${d.sid})</span></div>
+          <div class="streamer-meta"><span>${d.msgs}条消息</span><span>${d.convs}个对话</span><span>02.23 - 03.03</span><span style="margin-left:4px"><div class="spark" style="display:inline-flex;vertical-align:middle">${miniSpark}</div></span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="streamer-badges">${riskBadge}${platBadges}</div>
+          <div class="expand-icon" id="icon-${i}">▼</div>
+        </div>
+      </div>
+      <div class="streamer-body" id="body-${i}">
+        <div style="padding:8px 0 12px;font-size:13px;color:#94a3b8;border-bottom:1px solid rgba(148,163,184,0.06);margin-bottom:12px">${d.summary}</div>
+        ${riskHtml}
+        <div class="section-title">消息分类</div><div class="cat-bars">${catBars}</div>
+        ${msgHtml}
+      </div>
+    </div>`;
+  });
+  document.getElementById('panel-weekly').innerHTML=html;
+}
+
+function toggleCard(i){
+  document.getElementById('body-'+i).classList.toggle('open');
+  document.getElementById('icon-'+i).classList.toggle('open');
+}
+
+// ═══ Tab switching ═══
+document.getElementById('tabBar').addEventListener('click',e=>{
+  const tab=e.target.closest('.tab');
+  if(!tab)return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+});
+
+renderSummary();renderTrend();renderDetail();renderPlatform();renderAlerts();renderWeekly();
+</script>
+</body>
+</html>
