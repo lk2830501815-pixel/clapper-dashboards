@@ -21,30 +21,94 @@ h1 span{color:#f59e0b}
 .tag-green{background:rgba(16,185,129,0.12);color:#34d399}
 .tag-blue{background:rgba(59,130,246,0.12);color:#60a5fa}
 .tag-amber{background:rgba(245,158,11,0.12);color:#fbbf24}
+/* Login styles */
+#loginScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh}
+#loginScreen .lock{font-size:48px;margin-bottom:24px}
+#loginScreen h2{font-size:22px;color:#f1f5f9;margin-bottom:8px}
+#loginScreen .hint{color:#64748b;font-size:13px;margin-bottom:32px}
+.login-box{background:rgba(255,255,255,.03);border:1px solid rgba(148,163,184,.1);border-radius:16px;padding:32px;width:100%;max-width:360px}
+.login-box input{width:100%;padding:12px 16px;border-radius:10px;border:1px solid rgba(148,163,184,.15);background:rgba(255,255,255,.05);color:#f1f5f9;font-size:15px;margin-bottom:16px;outline:none;transition:border .2s;font-family:inherit}
+.login-box input:focus{border-color:rgba(245,158,11,.5)}
+.login-box input::placeholder{color:#475569}
+.login-box button{width:100%;padding:12px;border-radius:10px;border:none;background:#f59e0b;color:#0f172a;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s}
+.login-box button:hover{background:#d97706}
+.login-error{color:#f87171;font-size:12px;text-align:center;margin-top:8px;display:none}
+#mainContent{display:none}
 </style>
 </head>
 <body>
-<h1>📊 Clapper <span>Dashboards</span></h1>
-<p class="sub">运营数据看板门户</p>
-<div class="grid">
-  <a class="card" href="streamer.html">
-    <div class="icon">🎙️</div>
-    <h2>主播 Top50</h2>
-    <p>综合评分模型 · 漏斗归因 · 四象限变现分类 · 收入趋势</p>
-    <span class="tag tag-green">数据看板</span>
-  </a>
-  <a class="card" href="whale.html">
-    <div class="icon">🐋</div>
-    <h2>大R Top50</h2>
-    <p>行为分型 · 健康评估 · 风险评分 · 充值趋势 · 预警系统</p>
-    <span class="tag tag-blue">数据看板</span>
-  </a>
-  <a class="card" href="message.html">
-    <div class="icon">💬</div>
-    <h2>主播 Message分析</h2>
-    <p>5周趋势 · 外部平台导流追踪 · 风险演变 · 本周详情</p>
-    <span class="tag tag-amber">内容看板</span>
-  </a>
+
+<!-- Login Screen -->
+<div id="loginScreen">
+  <div class="lock">🔒</div>
+  <h2>Clapper Dashboards</h2>
+  <p class="hint">请输入密码访问运营数据看板</p>
+  <div class="login-box">
+    <input type="password" id="pwdInput" placeholder="输入密码..." autofocus>
+    <button onclick="checkLogin()">进入看板</button>
+    <div class="login-error" id="loginError">密码错误，请重试</div>
+  </div>
 </div>
+
+<!-- Main Content (hidden until login) -->
+<div id="mainContent">
+  <h1>📊 Clapper <span>Dashboards</span></h1>
+  <p class="sub">运营数据看板门户</p>
+  <div class="grid">
+    <a class="card" href="streamer.html">
+      <div class="icon">🎙️</div>
+      <h2>主播 Top50</h2>
+      <p>综合评分模型 · 漏斗归因 · 四象限变现分类 · 收入趋势</p>
+      <span class="tag tag-green">数据看板</span>
+    </a>
+    <a class="card" href="whale.html">
+      <div class="icon">🐋</div>
+      <h2>大R Top50</h2>
+      <p>行为分型 · 健康评估 · 风险评分 · 充值趋势 · 预警系统</p>
+      <span class="tag tag-blue">数据看板</span>
+    </a>
+    <a class="card" href="message.html">
+      <div class="icon">💬</div>
+      <h2>主播 Message分析</h2>
+      <p>5周趋势 · 外部平台导流追踪 · 风险演变 · 本周详情</p>
+      <span class="tag tag-amber">内容看板</span>
+    </a>
+  </div>
+</div>
+
+<script>
+const HASH='0f425fa971cb46f618a35c7f5ca54b421fd80c27483eda0f11408ffba74c5d6e';
+
+// Check if already logged in
+if(sessionStorage.getItem('clapper_auth')==='ok'){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainContent').style.display='flex';
+  document.getElementById('mainContent').style.flexDirection='column';
+  document.getElementById('mainContent').style.alignItems='center';
+}
+
+// Enter key support
+document.getElementById('pwdInput').addEventListener('keydown',function(e){
+  if(e.key==='Enter') checkLogin();
+});
+
+async function checkLogin(){
+  const pwd=document.getElementById('pwdInput').value;
+  const hashBuffer=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pwd));
+  const hashHex=Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  
+  if(hashHex===HASH){
+    sessionStorage.setItem('clapper_auth','ok');
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('mainContent').style.display='flex';
+    document.getElementById('mainContent').style.flexDirection='column';
+    document.getElementById('mainContent').style.alignItems='center';
+  }else{
+    document.getElementById('loginError').style.display='block';
+    document.getElementById('pwdInput').value='';
+    document.getElementById('pwdInput').focus();
+  }
+}
+</script>
 </body>
 </html>
